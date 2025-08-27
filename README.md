@@ -50,10 +50,66 @@ Optional flags and configuration are defined in `inference_pipeline/config.py`. 
 python data_generator\main.py
 ```
 
+### Usage Examples
+- Run with a categorical demo dataset and default config
+```bash
+python -m inference_pipeline.main \
+  --dataset_dir categorical_datasets/dataset_000 \
+  --config_path inference_pipeline/config.py \
+  --algorithm fges \
+  --framework py-tetrad
+```
+
+- Run with a mixed-type meta dataset (config-defined) and RFCI
+```bash
+python -m inference_pipeline.main \
+  --dataset_dir causal_meta_dataset/dataset_000_config_000 \
+  --config_path inference_pipeline/config.py \
+  --algorithm rfci \
+  --framework py-tetrad
+```
+
+- Enable post-hoc pruning with background knowledge
+```bash
+python -m inference_pipeline.main \
+  --dataset_dir causal_meta_dataset/dataset_000_config_000 \
+  --config_path inference_pipeline/config.py \
+  --algorithm fges \
+  --framework py-tetrad \
+  --prune_with_background true \
+  --background_path path/to/background_constraints.json
+```
+
+- Switch to ETIA-based algorithm
+```bash
+python -m inference_pipeline.main \
+  --dataset_dir causal_meta_dataset/dataset_001_config_001 \
+  --config_path inference_pipeline/config.py \
+  --algorithm etia \
+  --framework etia
+```
+
+Note: The exact flags may evolve; see `inference_pipeline/config.py` and `inference_pipeline/main.py` for authoritative options.
+
 ### Data-Type Agnostic Design
 The pipeline normalizes inputs and delegates type-specific handling to algorithm adapters. Each algorithm implements a small interface (fit/evaluate/serialize) so that adding a new method generally requires:
 - Writing an adapter in `inference_pipeline/utils/algorithm_registry.py`
 - Optionally exposing hyperparameters via `inference_pipeline/config.py`
+
+### Pipeline Diagram
+```mermaid
+flowchart LR
+  A[Input Data\n(mixed types)] --> B[Config Loader\n(dataset + params)]
+  B --> C[Preprocessing\n(type-aware normalization)]
+  C --> D{Algorithm Adapter}
+  D -->|Py-Tetrad| E[FGES/RFCI/...] 
+  D -->|ETIA| F[ETIA Variants]
+  E --> G[Candidate Graph]
+  F --> G[Candidate Graph]
+  G --> H{Optional Post-hoc Pruning\n(CausalAssembly)}
+  H --> I[Final Graph]
+  I --> J[Metrics + Reports\n(JSON/CSV)]
+```
 
 ### Results and Evaluation
 - Example outputs are saved under `demo_results/` and `causal_discovery_results2/`
