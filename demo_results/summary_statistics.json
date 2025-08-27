@@ -1,0 +1,41 @@
+{
+  "total_datasets": 2,
+  "algorithm_performance": {
+    "PC": {
+      "avg_precision": 0.6958041958041958,
+      "avg_recall": 0.7083333333333333,
+      "avg_f1_score": 0.7008695652173913,
+      "avg_execution_time": 0.14740073680877686,
+      "num_datasets": 2
+    },
+    "FCI": {
+      "avg_precision": 0.4772727272727273,
+      "avg_recall": 0.7083333333333334,
+      "avg_f1_score": 0.5633484162895928,
+      "avg_execution_time": 0.15922415256500244,
+      "num_datasets": 2
+    },
+    "GES": {
+      "avg_precision": 0.8166666666666667,
+      "avg_recall": 0.75,
+      "avg_f1_score": 0.7803030303030303,
+      "avg_execution_time": 0.543077826499939,
+      "num_datasets": 2
+    },
+    "RFCI": {
+      "avg_precision": 0.0,
+      "avg_recall": 0.0,
+      "avg_f1_score": 0.0,
+      "avg_execution_time": 1.0526268482208252,
+      "num_datasets": 2
+    },
+    "FGES": {
+      "avg_precision": 0.0,
+      "avg_recall": 0.0,
+      "avg_f1_score": 0.0,
+      "avg_execution_time": 0.07297813892364502,
+      "num_datasets": 2
+    }
+  },
+  "mixed_type_edge_detection": {}
+}

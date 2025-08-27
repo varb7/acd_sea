@@ -1,0 +1,22 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+categorical_datasets/
+causal_meta_dataset/**/data.npy
+causal_meta_dataset/**/graph.npy
+causal_meta_dataset/**/interventions.csv
+causal_meta_dataset/**/regimes.csv
+mlruns/
+*.whl
+
+acd/
+causenv/
+etiaenv/
+
