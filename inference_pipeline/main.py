@@ -60,15 +60,9 @@ def main():
         metadata = dataset['metadata']
 
         props = compute_data_properties(data, adj)
-        temporal_order = dataset['metadata'].get('temporal_order')
 
-# Fallback in case temporal_order is missing
-        if temporal_order is None:
-            G_true = build_true_graph(dataset['true_adj_matrix'], dataset['data'].columns)
-            temporal_order = list(nx.topological_sort(G_true))
-
-        # Use the new AlgorithmRegistry system for proper timing
-        registry = AlgorithmRegistry()
+        # Use the new AlgorithmRegistry system; enable fallbacks so we still run when Tetrad/JVM is unavailable
+        registry = AlgorithmRegistry(enable_fallbacks=True)
         algorithms = registry.list_algorithms()
         
         metrics = {}
@@ -93,50 +87,20 @@ def main():
                 'postprocessing_time': result.postprocessing_time
             }
             
-            # Apply temporal pruning if temporal order is provided
-            if temporal_order:
-                try:
-                    from utils.graph_utils import prune_temporal_violations
-                    
-                    # Convert to NetworkX graph
-                    pred_graph = nx.DiGraph(result.adjacency_matrix)
-                    pred_graph = nx.relabel_nodes(pred_graph, dict(enumerate(dataset['data'].columns)))
-                    
-                    # Apply pruning
-                    pruned_graph = prune_temporal_violations(pred_graph, temporal_order)
-                    pruned_adj = nx.to_numpy_array(pruned_graph, nodelist=dataset['data'].columns)
-                    
-                    # Compute metrics for pruned result
-                    pruned_metrics = compute_metrics(pruned_adj, dataset['true_adj_matrix'], max_possible_edges)
-                    metrics[f"{algo_name}_pruned"] = {
-                        **pruned_metrics,
-                        'execution_time': result.execution_time,
-                        'preprocessing_time': result.preprocessing_time,
-                        'postprocessing_time': result.postprocessing_time
-                    }
-                    
-                except Exception as e:
-                    print(f"[WARNING] Temporal pruning failed for {algo_name}: {e}")
-                    metrics[f"{algo_name}_pruned"] = {**default_metrics(), 'execution_time': 0.0}
 
-        for name, vals in metrics.items():
+        for algo_name, vals in metrics.items():
             if vals:
-                algo_name = name.replace('_pruned', '')
-                pruned = name.endswith('_pruned')
                 row = {
                     'dataset_name': f"dataset_{i}",
                     'algorithm': algo_name,
-                    'pruned': pruned,
-                    # **metadata,  # We'll filter out temporal_order below
                     **{k: v for k, v in metadata.items() if k != 'temporal_order'},
                     **props,
                     **vals,
                     'unified_score': (vals['normalized_shd'] + vals['f1_score']) / 2
                 }
                 # MLflow logging
-                with mlflow.start_run(run_name=f"dataset_{i}_{algo_name}_{'pruned' if pruned else 'raw'}"):
+                with mlflow.start_run(run_name=f"dataset_{i}_{algo_name}"):
                     mlflow.log_param("algorithm", algo_name)
-                    mlflow.log_param("pruned", pruned)
                     mlflow.log_param("dataset_name", f"dataset_{i}")
                     # Log all metadata and props as params
                     for k, v in metadata.items():

@@ -1,0 +1,96 @@
+# Data Generator Configuration
+# This file contains all configuration parameters for the data generation pipeline
+
+# Core settings
+total_datasets: 100
+output_dir: "causal_meta_dataset"
+log_level: "INFO"
+random_seed: 42
+validate_config: true
+
+# Graph structure configuration
+graph_structure:
+  # Range of number of nodes per dataset [min, max]
+  num_nodes_range: [10, 20]
+  
+  # Range of percentage of nodes that are root nodes [min, max]
+  root_nodes_percentage_range: [0.10, 0.30]
+  
+  # Range of edge density relative to maximum possible edges [min, max]
+  edges_density_range: [0.30, 0.80]
+
+# Data generation configuration
+data_generation:
+  # Range of number of samples per dataset [min, max]
+  num_samples_range: [1000, 50000]
+  
+  # Default number of samples if not specified
+  default_num_samples: 1000
+
+# Manufacturing-style distribution configuration
+manufacturing:
+  # Percentage of root nodes that should be categorical (rest are continuous)
+  categorical_percentage: 0.10
+  continuous_percentage: 0.90
+  
+  # Distribution mixture for continuous root nodes (must sum to 1.0)
+  continuous_distributions:
+    normal: 0.60
+    truncated_normal: 0.30
+    lognormal: 0.10
+  
+  # Distribution mixture for categorical root nodes (must sum to 1.0)
+  categorical_distributions:
+    uniform: 0.50
+    non_uniform: 0.50
+  
+  # Noise configuration for non-root nodes
+  noise_level: 0.005
+  noise_type: "normal"
+  noise_params:
+    mean: 0.0
+    std: 0.005
+
+# Parameter ranges for dynamic configuration generation
+generation_ranges:
+  # Range for categorical vs continuous split
+  categorical_percentage: [0.02, 0.40]
+  
+  # Ranges for continuous distribution components (before normalization)
+  normal_percentage: [0.50, 0.85]
+  truncated_normal_percentage: [0.10, 0.45]
+  lognormal_percentage: [0.05, 0.25]
+  
+  # Ranges for categorical distribution components (before normalization)
+  uniform_categorical_percentage: [0.30, 0.70]
+  non_uniform_categorical_percentage: [0.30, 0.70]
+  
+  # Range for noise level (std for Gaussian noise)
+  noise_level: [0.001, 0.02]
+
+# Output configuration
+output:
+  output_dir: "causal_meta_dataset"
+  save_metadata: true
+  save_graphs: true
+  save_adjacency_matrices: true
+  metadata_format: "json"  # json, yaml, pickle
+  graph_format: "npy"      # npy, pickle, json
+  adjacency_format: "csv"  # csv, json, npy
+
+# Generation strategy configuration
+strategy:
+  # Generation strategy: random, preset_variations, gradient, mixed
+  strategy: "random"
+  
+  # Random seed for reproducibility
+  seed: 42
+  
+  # Number of parallel workers (1 = sequential)
+  parallel_workers: 1
+  
+  # Enable progress reporting
+  progress_reporting: true
+  
+  # Save intermediate results during generation
+  save_intermediate_results: false

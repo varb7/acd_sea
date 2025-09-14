@@ -36,6 +36,10 @@ class TetradFGES:
         self.max_degree = kwargs.get("max_degree", -1)
         self.parallel = kwargs.get("parallel", False)
         self.equivalent_sample_size = kwargs.get("equivalent_sample_size", 10.0)
+        # When True, include undirected CPDAG edges (TAIL-TAIL) as symmetric edges in adjacency
+        self.include_undirected = kwargs.get("include_undirected", True)
+        # When True, convert CPDAG to a DAG using GraphTransforms.dagFromCpdag
+        self.orient_cpdag_to_dag = kwargs.get("orient_cpdag_to_dag", True)
 
         self._ensure_jvm()
         self._import_tetrad_modules()
@@ -61,7 +65,7 @@ class TetradFGES:
             raise RuntimeError(
                 "No Tetrad JAR found. Install py-tetrad or set TETRAD_JAR, or drop a jar in ./resources/"
             )
-        jpype.startJVM(classpath=jars)
+        jpype.startJVM(jpype.getDefaultJVMPath(), classpath=jars)
 
     def _import_tetrad_modules(self):
         try:
@@ -125,8 +129,7 @@ class TetradFGES:
             sc.setEquivalentSampleSize(self.equivalent_sample_size)
             self.last_score_type = "BDeuScore (discrete)"
         else:
-            sc = self.score.SemBicScore(tetrad_data)  # continuous
-            sc.setPenaltyDiscount(self.penalty_discount)
+            sc = self.score.SemBicScore(tetrad_data, self.penalty_discount, True)  # continuous
             self.last_score_type = "SemBicScore (continuous)"
         return sc
 
@@ -152,7 +155,7 @@ class TetradFGES:
     # ---------------- Adjacency (direct edges only) ----------------
 
     def _dag_to_adjacency_matrix(self, dag, columns: list) -> np.ndarray:
-        """Mark a→b iff there is a DIRECT edge a→b (no ancestor closure)."""
+        """Mark a→b iff there is a DIRECT edge a→b; optionally include undirected CPDAG edges."""
         n = len(columns)
         adj = np.zeros((n, n), dtype=int)
         Endpoint = self.graph.Endpoint  # TAIL, ARROW, ...
@@ -161,13 +164,17 @@ class TetradFGES:
         for e in list(dag.getEdges()):
             n1 = e.getNode1(); n2 = e.getNode2()
             a = n1.getName(); b = n2.getName()
-            ea = e.getEndpoint(n1); eb = e.getEndpoint(n2)
+            ea = e.getProximalEndpoint(n1); eb = e.getProximalEndpoint(n2)
             if ea == Endpoint.TAIL and eb == Endpoint.ARROW:
                 i = columns.index(a); j = columns.index(b)
                 adj[i, j] = 1
             elif eb == Endpoint.TAIL and ea == Endpoint.ARROW:
                 i = columns.index(b); j = columns.index(a)
                 adj[i, j] = 1
+            elif self.include_undirected and ea == Endpoint.TAIL and eb == Endpoint.TAIL:
+                i = columns.index(a); j = columns.index(b)
+                adj[i, j] = 1
+                adj[j, i] = 1
         return adj
 
     # ---------------- Public API ----------------
@@ -187,7 +194,16 @@ class TetradFGES:
 
         tetrad_data, cats, cont = self._convert_to_tetrad_format(df)
         sc = self._create_score_function(tetrad_data, cats, cont)
-        dag = self._run_fges(sc)
+        graph_out = self._run_fges(sc)
+        # FGES typically returns a CPDAG; optionally orient to a DAG
+        if self.orient_cpdag_to_dag:
+            try:
+                # Static method call in Tetrad
+                dag = self.graph.GraphTransforms.dagFromCpdag(graph_out)
+            except Exception:
+                dag = graph_out  # fallback
+        else:
+            dag = graph_out
         return self._dag_to_adjacency_matrix(dag, columns)
 
     def get_parameters(self) -> Dict[str, Any]:
@@ -219,12 +235,14 @@ def run_fges(
     max_degree: int = -1,
     parallel: bool = False,
     equivalent_sample_size: float = 10.0,
+    orient_cpdag_to_dag: bool = True,
 ) -> np.ndarray:
     fges = TetradFGES(
         penalty_discount=penalty_discount,
         max_degree=max_degree,
         parallel=parallel,
         equivalent_sample_size=equivalent_sample_size,
+        orient_cpdag_to_dag=orient_cpdag_to_dag,
     )
     return fges.run(data, columns)
 

@@ -1,0 +1,230 @@
+# Manufacturing-Specific Configuration
+# This configuration is optimized for manufacturing process simulation
+# with realistic parameter ranges and distributions
+
+# Core settings
+total_datasets: 200
+output_dir: "manufacturing_datasets"
+log_level: "INFO"
+random_seed: 42
+validate_config: true
+
+# Graph structure optimized for manufacturing processes
+graph_structure:
+  # Manufacturing processes typically have 15-40 stations/processes
+  num_nodes_range: [15, 40]
+  
+  # Manufacturing typically has 5-15% root processes (raw materials, initial inputs)
+  root_nodes_percentage_range: [0.05, 0.15]
+  
+  # Manufacturing processes have moderate to high connectivity
+  edges_density_range: [0.25, 0.65]
+
+# Data generation for manufacturing scale
+data_generation:
+  # Manufacturing datasets typically have 5000-100000 samples (production runs)
+  num_samples_range: [5000, 100000]
+  default_num_samples: 25000
+
+# Manufacturing-specific distribution configuration
+manufacturing:
+  # Manufacturing processes are predominantly continuous (temperatures, pressures, speeds)
+  categorical_percentage: 0.08
+  continuous_percentage: 0.92
+  
+  # Manufacturing continuous distributions (realistic for process variables)
+  continuous_distributions:
+    # Normal distribution for well-controlled processes (60%)
+    normal: 0.60
+    # Truncated normal for processes with physical limits (30%)
+    truncated_normal: 0.30
+    # Lognormal for multiplicative effects and positive-only variables (10%)
+    lognormal: 0.10
+  
+  # Manufacturing categorical distributions (equipment states, material types)
+  categorical_distributions:
+    # Uniform for equipment states (on/off, idle/active)
+    uniform: 0.40
+    # Non-uniform for material types and quality grades
+    non_uniform: 0.60
+  
+  # Manufacturing noise levels (typically low due to process control)
+  noise_level: 0.003
+  noise_type: "normal"
+  noise_params:
+    mean: 0.0
+    std: 0.003
+
+# Generation ranges optimized for manufacturing
+generation_ranges:
+  # Manufacturing processes have low categorical percentage
+  categorical_percentage: [0.02, 0.20]
+  
+  # Well-controlled processes favor normal distributions
+  normal_percentage: [0.50, 0.80]
+  # Physical constraints create truncated distributions
+  truncated_normal_percentage: [0.15, 0.40]
+  # Multiplicative effects create lognormal distributions
+  lognormal_percentage: [0.05, 0.25]
+  
+  # Equipment states are often uniform
+  uniform_categorical_percentage: [0.30, 0.70]
+  # Material types and grades are often non-uniform
+  non_uniform_categorical_percentage: [0.30, 0.70]
+  
+  # Manufacturing processes have low noise due to control systems
+  noise_level: [0.001, 0.008]
+
+# Output configuration for manufacturing analysis
+output:
+  output_dir: "manufacturing_datasets"
+  save_metadata: true
+  save_graphs: true
+  save_adjacency_matrices: true
+  metadata_format: "json"  # JSON for easy integration with analysis tools
+  graph_format: "npy"      # NumPy for efficient numerical processing
+  adjacency_format: "csv"  # CSV for easy import into manufacturing software
+
+# Generation strategy optimized for manufacturing
+strategy:
+  # Mixed strategy provides good coverage of manufacturing scenarios
+  strategy: "mixed"
+  seed: 42
+  parallel_workers: 2  # Moderate parallelization for manufacturing scale
+  progress_reporting: true
+  save_intermediate_results: false
+
+# Manufacturing-specific metadata
+manufacturing_metadata:
+  # Process types commonly found in manufacturing
+  process_types:
+    - "temperature_control"
+    - "pressure_regulation"
+    - "flow_control"
+    - "mixing_process"
+    - "heating_cooling"
+    - "filtration"
+    - "separation"
+    - "reaction_process"
+    - "quality_control"
+    - "packaging"
+  
+  # Equipment categories
+  equipment_categories:
+    - "sensors"
+    - "actuators"
+    - "controllers"
+    - "valves"
+    - "pumps"
+    - "heat_exchangers"
+    - "reactors"
+    - "separators"
+    - "conveyors"
+    - "robots"
+  
+  # Material types
+  material_types:
+    - "raw_material"
+    - "intermediate_product"
+    - "final_product"
+    - "waste_material"
+    - "catalyst"
+    - "solvent"
+    - "additive"
+  
+  # Quality grades
+  quality_grades:
+    - "premium"
+    - "standard"
+    - "acceptable"
+    - "reject"
+    - "rework"
+  
+  # Process parameters
+  process_parameters:
+    temperature:
+      unit: "celsius"
+      range: [20, 500]
+      typical_range: [50, 200]
+    
+    pressure:
+      unit: "bar"
+      range: [0.1, 50]
+      typical_range: [1, 10]
+    
+    flow_rate:
+      unit: "m3/h"
+      range: [0.1, 1000]
+      typical_range: [1, 100]
+    
+    concentration:
+      unit: "mol/L"
+      range: [0.001, 10]
+      typical_range: [0.1, 2]
+    
+    ph:
+      unit: "pH"
+      range: [0, 14]
+      typical_range: [6, 8]
+    
+    viscosity:
+      unit: "cP"
+      range: [0.1, 10000]
+      typical_range: [1, 1000]
+  
+  # Control system parameters
+  control_parameters:
+    pid_controllers:
+      kp_range: [0.1, 10]
+      ki_range: [0.01, 1]
+      kd_range: [0.001, 0.1]
+    
+    setpoints:
+      temperature_tolerance: 2.0  # ±2°C
+      pressure_tolerance: 0.1     # ±0.1 bar
+      flow_tolerance: 0.05        # ±5%
+    
+    sampling_rates:
+      fast_control: 1.0    # 1 Hz
+      medium_control: 0.1  # 0.1 Hz
+      slow_control: 0.01   # 0.01 Hz
+  
+  # Manufacturing constraints
+  constraints:
+    # Physical constraints
+    max_temperature: 500
+    max_pressure: 50
+    max_flow_rate: 1000
+    
+    # Safety constraints
+    safety_margins:
+      temperature: 0.9  # 90% of max
+      pressure: 0.8     # 80% of max
+      flow: 0.95        # 95% of max
+    
+    # Quality constraints
+    quality_limits:
+      min_purity: 0.95
+      max_impurity: 0.05
+      min_yield: 0.85
+      max_waste: 0.15
+  
+  # Production scenarios
+  production_scenarios:
+    - "normal_operation"
+    - "startup_sequence"
+    - "shutdown_sequence"
+    - "maintenance_mode"
+    - "emergency_stop"
+    - "quality_issue"
+    - "equipment_failure"
+    - "material_shortage"
+    - "high_demand"
+    - "low_demand"
+  
+  # Data collection intervals
+  data_collection:
+    real_time: 1.0      # 1 second
+    batch_data: 60.0    # 1 minute
+    shift_data: 28800.0 # 8 hours
+    daily_data: 86400.0 # 24 hours

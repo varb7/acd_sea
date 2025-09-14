@@ -8,15 +8,10 @@ from abc import ABC, abstractmethod
 import warnings
 warnings.filterwarnings('ignore')
 
-# Import algorithm implementations
-from castle.algorithms import PC, GES
+# Import metrics (required by pipeline)
 from castle.metrics import MetricsDAG
-try:
-    from causallearn.search.ConstraintBased.FCI import fci
-    FCI_AVAILABLE = True
-except ImportError:
-    FCI_AVAILABLE = False
-    print("[WARNING] FCI algorithm not available - causallearn not installed")
+
+# Note: We only use PyTetrad algorithms in this pipeline now
 
 
 
@@ -29,11 +24,17 @@ REX_AVAILABLE = False
 try:
     from tetrad_rfci import TetradRFCI
     from tetrad_fges import TetradFGES
+    from tetrad_gfci import TetradGFCI
+    from tetrad_fci_max import TetradFCIMax
+    from tetrad_fci import TetradFCI
+    from tetrad_cpc import TetradCPC
+    from tetrad_cfci import TetradCFCI
+    from tetrad_boss import TetradBOSS
     TETRAD_AVAILABLE = True
-    print("[INFO] Tetrad algorithms (RFCI, FGES) available")
+    print("[INFO] Tetrad algorithms (RFCI, FGES, GFCI, FCI, FCI-Max, CPC, CFCI, BOSS) available")
 except ImportError:
     TETRAD_AVAILABLE = False
-    print("[WARNING] Tetrad algorithms not available - tetrad_rfci.py and tetrad_fges.py not found")
+    print("[WARNING] Tetrad algorithms not available - tetrad_* modules not found")
 
 # Try to import TXGES (new version)
 try:
@@ -43,6 +44,15 @@ try:
 except ImportError:
     TXGES_AVAILABLE = False
     print("[INFO] TXGES algorithm not available - txges not installed")
+
+# Optional external algorithms (BOSS)
+try:
+    from .boss_adapter import run_boss
+    BOSS_AVAILABLE = True
+    print("[INFO] BOSS adapter available")
+except Exception:
+    BOSS_AVAILABLE = False
+    print("[INFO] BOSS not available")
 
 
 
@@ -112,161 +122,7 @@ class BaseAlgorithm(ABC):
             metadata=metadata
         )
 
-class PCAlgorithm(BaseAlgorithm):
-    """PC Algorithm implementation"""
-    
-    def __init__(self, **kwargs):
-        super().__init__("PC", **kwargs)
-        
-    def _preprocess(self, data: np.ndarray, columns: list) -> Tuple[np.ndarray, Dict[str, Any]]:
-        """Preprocess data for PC algorithm"""
-        # PC works with continuous data, no scaling needed
-        
-        metadata = {
-            'original_shape': data.shape,
-            'columns': columns
-        }
-        
-        return data, metadata
-        
-    def _run_algorithm(self, preprocessed_data: np.ndarray, metadata: Dict[str, Any]) -> np.ndarray:
-        """Run PC algorithm"""
-        try:
-            pc = PC()
-            pc.learn(preprocessed_data)
-            return pc.causal_matrix
-        except Exception as e:
-            print(f"[ERROR] PC algorithm failed: {e}")
-            return np.zeros((preprocessed_data.shape[1], preprocessed_data.shape[1]))
-            
-    def _postprocess(self, raw_output: np.ndarray, original_shape: Tuple[int, int], metadata: Dict[str, Any]) -> np.ndarray:
-        """Postprocess PC output"""
-        # Ensure output is binary and correct shape
-        if raw_output is None or np.any(np.isnan(raw_output)):
-            return np.zeros((original_shape[1], original_shape[1]))
-            
-        # Convert to binary
-        binary_output = (raw_output != 0).astype(int)
-        
-        # Ensure correct shape
-        if binary_output.shape != (original_shape[1], original_shape[1]):
-            print(f"[WARNING] PC output shape mismatch: {binary_output.shape} vs expected {(original_shape[1], original_shape[1])}")
-            return np.zeros((original_shape[1], original_shape[1]))
-            
-        return binary_output
-
-class GESAlgorithm(BaseAlgorithm):
-    """GES Algorithm implementation"""
-    
-    def __init__(self, **kwargs):
-        super().__init__("GES", **kwargs)
-        
-    def _preprocess(self, data: np.ndarray, columns: list) -> Tuple[np.ndarray, Dict[str, Any]]:
-        """Preprocess data for GES algorithm"""
-        # GES works with continuous data, no scaling needed
-        
-        metadata = {
-            'original_shape': data.shape,
-            'columns': columns
-        }
-        
-        return data, metadata
-        
-    def _run_algorithm(self, preprocessed_data: np.ndarray, metadata: Dict[str, Any]) -> np.ndarray:
-        """Run GES algorithm"""
-        try:
-            ges = GES()
-            ges.learn(preprocessed_data)
-            return ges.causal_matrix
-        except Exception as e:
-            print(f"[ERROR] GES algorithm failed: {e}")
-            return np.zeros((preprocessed_data.shape[1], preprocessed_data.shape[1]))
-            
-    def _postprocess(self, raw_output: np.ndarray, original_shape: Tuple[int, int], metadata: Dict[str, Any]) -> np.ndarray:
-        """Postprocess GES output"""
-        # Ensure output is binary and correct shape
-        if raw_output is None or np.any(np.isnan(raw_output)):
-            return np.zeros((original_shape[1], original_shape[1]))
-            
-        # Convert to binary
-        binary_output = (raw_output != 0).astype(int)
-        
-        # Ensure correct shape
-        if binary_output.shape != (original_shape[1], original_shape[1]):
-            print(f"[WARNING] GES output shape mismatch: {binary_output.shape} vs expected {(original_shape[1], original_shape[1])}")
-            return np.zeros((original_shape[1], original_shape[1]))
-            
-        return binary_output
-
-class FCIAlgorithm(BaseAlgorithm):
-    """FCI Algorithm implementation"""
-    
-    def __init__(self, alpha: float = 0.05, **kwargs):
-        super().__init__("FCI", alpha=alpha, **kwargs)
-        
-    def _preprocess(self, data: np.ndarray, columns: list) -> Tuple[np.ndarray, Dict[str, Any]]:
-        """Preprocess data for FCI algorithm"""
-        # FCI works with continuous data, no scaling needed
-        
-        metadata = {
-            'original_shape': data.shape,
-            'columns': columns,
-            'alpha': self.config.get('alpha', 0.05)
-        }
-        
-        return data, metadata
-        
-    def _run_algorithm(self, preprocessed_data: np.ndarray, metadata: Dict[str, Any]) -> np.ndarray:
-        """Run FCI algorithm"""
-        if not FCI_AVAILABLE:
-            print("[WARNING] FCI not available")
-            return np.zeros((preprocessed_data.shape[1], preprocessed_data.shape[1]))
-            
-        try:
-            alpha = metadata.get('alpha', 0.05)
-            result = fci(preprocessed_data, alpha=alpha)
-            
-            # FCI returns a tuple: (GeneralGraph, [Edge objects])
-            if isinstance(result, tuple) and len(result) > 0:
-                general_graph = result[0]  # First element is the GeneralGraph
-                
-                # The GeneralGraph has a .graph attribute that is a numpy adjacency matrix
-                if hasattr(general_graph, 'graph'):
-                    adj_matrix = general_graph.graph
-                    
-                    # Ensure it's the right shape
-                    if adj_matrix.shape == (preprocessed_data.shape[1], preprocessed_data.shape[1]):
-                        return adj_matrix
-                    else:
-                        print(f"[WARNING] FCI adjacency matrix shape mismatch: {adj_matrix.shape}")
-                        return np.zeros((preprocessed_data.shape[1], preprocessed_data.shape[1]))
-                else:
-                    print(f"[WARNING] FCI GeneralGraph has no .graph attribute")
-                    return np.zeros((preprocessed_data.shape[1], preprocessed_data.shape[1]))
-                    
-            else:
-                print(f"[WARNING] FCI returned unexpected result type: {type(result)}")
-                return np.zeros((preprocessed_data.shape[1], preprocessed_data.shape[1]))
-                
-        except Exception as e:
-            print(f"[ERROR] FCI algorithm failed: {e}")
-            return np.zeros((preprocessed_data.shape[1], preprocessed_data.shape[1]))
-            
-    def _postprocess(self, raw_output: np.ndarray, original_shape: Tuple[int, int], metadata: Dict[str, Any]) -> np.ndarray:
-        """Postprocess FCI output"""
-        # Ensure output is binary and correct shape
-        if raw_output is None or np.any(np.isnan(raw_output)):
-            return np.zeros((original_shape[1], original_shape[1]))
-            
-        # Convert to binary - FCI can return fractional values
-        binary_output = (raw_output != 0).astype(int)
-        
-        # Ensure correct shape
-        if binary_output.shape != (original_shape[1], original_shape[1]):
-            print(f"[WARNING] FCI output shape mismatch: {binary_output.shape} vs expected {(original_shape[1], original_shape[1])}")
-            return np.zeros((original_shape[1], original_shape[1]))
-            
-        return binary_output
+# Removed Castle (PC, GES) and CausalLearn (FCI) fallback implementations
 
 
 class TXGESAlgorithm(BaseAlgorithm):
@@ -457,22 +313,173 @@ class TetradFGESAlgorithm(BaseAlgorithm):
 class AlgorithmRegistry:
     """Registry for managing causal discovery algorithms"""
     
-    def __init__(self):
+    def __init__(self, enable_fallbacks: bool = False):
         self._algorithms = {}
+        self.enable_fallbacks = enable_fallbacks
         self._register_default_algorithms()
         
     def _register_default_algorithms(self):
-        """Register default algorithms"""
-        self.register_algorithm(PCAlgorithm())
-        self.register_algorithm(GESAlgorithm())
-        if FCI_AVAILABLE:
-            self.register_algorithm(FCIAlgorithm())
-        # Temporarily disabled TXGES for this run
-        # if TXGES_AVAILABLE:
-        #     self.register_algorithm(TXGESAlgorithm())
-        if TETRAD_AVAILABLE:
-            self.register_algorithm(TetradRFCIAlgorithm())
-            self.register_algorithm(TetradFGESAlgorithm())
+        """Register only PyTetrad algorithms (no fallbacks)."""
+        if not TETRAD_AVAILABLE:
+            raise RuntimeError("PyTetrad algorithms are not available. Ensure tetrad_rfci.py and tetrad_fges.py are present.")
+        self.register_algorithm(TetradRFCIAlgorithm())
+        self.register_algorithm(TetradFGESAlgorithm())
+        # Add GFCI
+        try:
+            # Simple adapter using convenience function
+            class TetradGFCIAlgorithm(BaseAlgorithm):
+                def __init__(self, **kwargs):
+                    super().__init__("TetradGFCI", **kwargs)
+                    self.alpha = kwargs.get('alpha', 0.05)
+                    self.depth = kwargs.get('depth', -1)
+                    self.penalty_discount = kwargs.get('penalty_discount', 2.0)
+                def _preprocess(self, data: np.ndarray, columns: list):
+                    df = pd.DataFrame(data, columns=columns)
+                    return df, { 'original_shape': data.shape, 'columns': columns }
+                def _run_algorithm(self, preprocessed_data: pd.DataFrame, metadata: Dict[str, Any]) -> np.ndarray:
+                    from tetrad_gfci import run_gfci
+                    return run_gfci(preprocessed_data, list(preprocessed_data.columns), alpha=self.alpha, depth=self.depth, penalty_discount=self.penalty_discount)
+                def _postprocess(self, raw_output: np.ndarray, original_shape: Tuple[int, int], metadata: Dict[str, Any]) -> np.ndarray:
+                    if raw_output is None or np.any(np.isnan(raw_output)):
+                        return np.zeros((original_shape[1], original_shape[1]))
+                    out = (raw_output != 0).astype(int)
+                    return out if out.shape == (original_shape[1], original_shape[1]) else np.zeros((original_shape[1], original_shape[1]))
+            self.register_algorithm(TetradGFCIAlgorithm())
+        except Exception as e:
+            print(f"[WARNING] Could not register TetradGFCI: {e}")
+        # Add CPC
+        try:
+            class TetradCPCAlgorithm(BaseAlgorithm):
+                def __init__(self, **kwargs):
+                    super().__init__("TetradCPC", **kwargs)
+                    self.alpha = kwargs.get('alpha', 0.05)
+                    self.depth = kwargs.get('depth', -1)
+                def _preprocess(self, data: np.ndarray, columns: list):
+                    df = pd.DataFrame(data, columns=columns)
+                    return df, { 'original_shape': data.shape, 'columns': columns }
+                def _run_algorithm(self, preprocessed_data: pd.DataFrame, metadata: Dict[str, Any]) -> np.ndarray:
+                    from tetrad_cpc import run_cpc
+                    return run_cpc(preprocessed_data, list(preprocessed_data.columns), alpha=self.alpha, depth=self.depth)
+                def _postprocess(self, raw_output: np.ndarray, original_shape: Tuple[int, int], metadata: Dict[str, Any]) -> np.ndarray:
+                    if raw_output is None or np.any(np.isnan(raw_output)):
+                        return np.zeros((original_shape[1], original_shape[1]))
+                    out = (raw_output != 0).astype(int)
+                    return out if out.shape == (original_shape[1], original_shape[1]) else np.zeros((original_shape[1], original_shape[1]))
+            self.register_algorithm(TetradCPCAlgorithm())
+        except Exception as e:
+            print(f"[WARNING] Could not register TetradCPC: {e}")
+        # Add CFCI
+        try:
+            class TetradCFCIAlgorithm(BaseAlgorithm):
+                def __init__(self, **kwargs):
+                    super().__init__("TetradCFCI", **kwargs)
+                    self.alpha = kwargs.get('alpha', 0.05)
+                    self.depth = kwargs.get('depth', -1)
+                def _preprocess(self, data: np.ndarray, columns: list):
+                    df = pd.DataFrame(data, columns=columns)
+                    return df, { 'original_shape': data.shape, 'columns': columns }
+                def _run_algorithm(self, preprocessed_data: pd.DataFrame, metadata: Dict[str, Any]) -> np.ndarray:
+                    from tetrad_cfci import run_cfci
+                    return run_cfci(preprocessed_data, list(preprocessed_data.columns), alpha=self.alpha, depth=self.depth)
+                def _postprocess(self, raw_output: np.ndarray, original_shape: Tuple[int, int], metadata: Dict[str, Any]) -> np.ndarray:
+                    if raw_output is None or np.any(np.isnan(raw_output)):
+                        return np.zeros((original_shape[1], original_shape[1]))
+                    out = (raw_output != 0).astype(int)
+                    return out if out.shape == (original_shape[1], original_shape[1]) else np.zeros((original_shape[1], original_shape[1]))
+            self.register_algorithm(TetradCFCIAlgorithm())
+        except Exception as e:
+            print(f"[WARNING] Could not register TetradCFCI: {e}")
+        # SAM not supported in current Tetrad build; consider external methods like BOSS/DAGMA separately
+        # Add Tetrad BOSS (native via pytetrad.tools.search)
+        try:
+            class TetradBOSSAlgorithm(BaseAlgorithm):
+                def __init__(self, **kwargs):
+                    super().__init__("TetradBOSS", **kwargs)
+                    self.penalty_discount = kwargs.get('penalty_discount', 2.0)
+                    self.use_bes = kwargs.get('use_bes', True)
+                    self.num_starts = kwargs.get('num_starts', 10)
+                    self.threads = kwargs.get('threads', max(1, (os.cpu_count() or 1)))
+                def _preprocess(self, data: np.ndarray, columns: list):
+                    df = pd.DataFrame(data, columns=columns)
+                    return df, { 'original_shape': data.shape, 'columns': columns }
+                def _run_algorithm(self, preprocessed_data: pd.DataFrame, metadata: Dict[str, Any]) -> np.ndarray:
+                    from tetrad_boss import run_boss_tetrad
+                    return run_boss_tetrad(
+                        preprocessed_data,
+                        list(preprocessed_data.columns),
+                        penalty_discount=self.penalty_discount,
+                        use_bes=self.use_bes,
+                        num_starts=self.num_starts,
+                        threads=self.threads,
+                    )
+                def _postprocess(self, raw_output: np.ndarray, original_shape: Tuple[int, int], metadata: Dict[str, Any]) -> np.ndarray:
+                    if raw_output is None or np.any(np.isnan(raw_output)):
+                        return np.zeros((original_shape[1], original_shape[1]))
+                    out = (raw_output != 0).astype(int)
+                    return out if out.shape == (original_shape[1], original_shape[1]) else np.zeros((original_shape[1], original_shape[1]))
+            self.register_algorithm(TetradBOSSAlgorithm())
+        except Exception as e:
+            print(f"[WARNING] Could not register TetradBOSS: {e}")
+        # Add BOSS if available
+        if 'BOSS_AVAILABLE' in globals() and BOSS_AVAILABLE:
+            class BOSSAlgorithm(BaseAlgorithm):
+                def __init__(self, **kwargs):
+                    super().__init__("BOSS", **kwargs)
+                def _preprocess(self, data: np.ndarray, columns: list):
+                    return data, { 'original_shape': data.shape, 'columns': columns }
+                def _run_algorithm(self, preprocessed_data: np.ndarray, metadata: Dict[str, Any]) -> np.ndarray:
+                    adj = run_boss(preprocessed_data)
+                    return adj if adj is not None else np.zeros((preprocessed_data.shape[1], preprocessed_data.shape[1]))
+                def _postprocess(self, raw_output: np.ndarray, original_shape: Tuple[int, int], metadata: Dict[str, Any]) -> np.ndarray:
+                    if raw_output is None or np.any(np.isnan(raw_output)):
+                        return np.zeros((original_shape[1], original_shape[1]))
+                    out = (raw_output != 0).astype(int)
+                    return out if out.shape == (original_shape[1], original_shape[1]) else np.zeros((original_shape[1], original_shape[1]))
+            self.register_algorithm(BOSSAlgorithm())
+
+        # DAGMA removed per request
+        # Add FCI
+        try:
+            class TetradFCIAlgorithm(BaseAlgorithm):
+                def __init__(self, **kwargs):
+                    super().__init__("TetradFCI", **kwargs)
+                    self.alpha = kwargs.get('alpha', 0.05)
+                    self.depth = kwargs.get('depth', -1)
+                def _preprocess(self, data: np.ndarray, columns: list):
+                    df = pd.DataFrame(data, columns=columns)
+                    return df, { 'original_shape': data.shape, 'columns': columns }
+                def _run_algorithm(self, preprocessed_data: pd.DataFrame, metadata: Dict[str, Any]) -> np.ndarray:
+                    from tetrad_fci import run_fci
+                    return run_fci(preprocessed_data, list(preprocessed_data.columns), alpha=self.alpha, depth=self.depth)
+                def _postprocess(self, raw_output: np.ndarray, original_shape: Tuple[int, int], metadata: Dict[str, Any]) -> np.ndarray:
+                    if raw_output is None or np.any(np.isnan(raw_output)):
+                        return np.zeros((original_shape[1], original_shape[1]))
+                    out = (raw_output != 0).astype(int)
+                    return out if out.shape == (original_shape[1], original_shape[1]) else np.zeros((original_shape[1], original_shape[1]))
+            self.register_algorithm(TetradFCIAlgorithm())
+        except Exception as e:
+            print(f"[WARNING] Could not register TetradFCI: {e}")
+        # Add FCI-Max adapter
+        try:
+            class TetradFCIMaxAlgorithm(BaseAlgorithm):
+                def __init__(self, **kwargs):
+                    super().__init__("TetradFCIMax", **kwargs)
+                    self.alpha = kwargs.get('alpha', 0.05)
+                    self.depth = kwargs.get('depth', -1)
+                def _preprocess(self, data: np.ndarray, columns: list):
+                    df = pd.DataFrame(data, columns=columns)
+                    return df, { 'original_shape': data.shape, 'columns': columns }
+                def _run_algorithm(self, preprocessed_data: pd.DataFrame, metadata: Dict[str, Any]) -> np.ndarray:
+                    from tetrad_fci_max import run_fci_max
+                    return run_fci_max(preprocessed_data, list(preprocessed_data.columns), alpha=self.alpha, depth=self.depth)
+                def _postprocess(self, raw_output: np.ndarray, original_shape: Tuple[int, int], metadata: Dict[str, Any]) -> np.ndarray:
+                    if raw_output is None or np.any(np.isnan(raw_output)):
+                        return np.zeros((original_shape[1], original_shape[1]))
+                    out = (raw_output != 0).astype(int)
+                    return out if out.shape == (original_shape[1], original_shape[1]) else np.zeros((original_shape[1], original_shape[1]))
+            self.register_algorithm(TetradFCIMaxAlgorithm())
+        except Exception as e:
+            print(f"[WARNING] Could not register TetradFCIMax: {e}")
 
             
     def register_algorithm(self, algorithm: BaseAlgorithm):
@@ -572,7 +579,6 @@ def default_metrics() -> Dict[str, Any]:
     }
 
 def apply_causal_discovery_algorithms(data: pd.DataFrame, true_adj_matrix: np.ndarray, 
-                                    temporal_order: Optional[list] = None,
                                     algorithms: Optional[list] = None) -> Dict[str, Dict[str, Any]]:
     """
     Apply multiple causal discovery algorithms to the data
@@ -580,7 +586,6 @@ def apply_causal_discovery_algorithms(data: pd.DataFrame, true_adj_matrix: np.nd
     Args:
         data: Input data as pandas DataFrame
         true_adj_matrix: True adjacency matrix for evaluation
-        temporal_order: Optional temporal ordering for pruning
         algorithms: List of algorithm names to run (None for all)
     
     Returns:
@@ -613,31 +618,6 @@ def apply_causal_discovery_algorithms(data: pd.DataFrame, true_adj_matrix: np.nd
             'postprocessing_time': result.postprocessing_time
         }
         
-        # Apply temporal pruning if temporal order is provided
-        if temporal_order:
-            try:
-                from .graph_utils import prune_temporal_violations
-                
-                # Convert to NetworkX graph
-                pred_graph = nx.DiGraph(result.adjacency_matrix)
-                pred_graph = nx.relabel_nodes(pred_graph, dict(enumerate(data.columns)))
-                
-                # Apply pruning
-                pruned_graph = prune_temporal_violations(pred_graph, temporal_order)
-                pruned_adj = nx.to_numpy_array(pruned_graph, nodelist=data.columns)
-                
-                # Compute metrics for pruned result
-                pruned_metrics = compute_metrics(pruned_adj, true_adj_matrix, max_possible_edges)
-                results[f"{algo_name}_pruned"] = {
-                    **pruned_metrics,
-                    'execution_time': result.execution_time,
-                    'preprocessing_time': result.preprocessing_time,
-                    'postprocessing_time': result.postprocessing_time
-                }
-                
-            except Exception as e:
-                print(f"[WARNING] Temporal pruning failed for {algo_name}: {e}")
-                results[f"{algo_name}_pruned"] = {**default_metrics(), 'execution_time': 0.0}
     
     return results
 

@@ -1,0 +1,58 @@
+# Minimal Configuration for Testing
+# This configuration generates a small number of simple datasets for testing
+
+total_datasets: 5
+output_dir: "test_datasets"
+log_level: "DEBUG"
+random_seed: 42
+validate_config: true
+
+graph_structure:
+  num_nodes_range: [5, 10]
+  root_nodes_percentage_range: [0.20, 0.40]
+  edges_density_range: [0.20, 0.50]
+
+data_generation:
+  num_samples_range: [100, 1000]
+  default_num_samples: 500
+
+manufacturing:
+  categorical_percentage: 0.20
+  continuous_percentage: 0.80
+  continuous_distributions:
+    normal: 0.70
+    truncated_normal: 0.20
+    lognormal: 0.10
+  categorical_distributions:
+    uniform: 0.60
+    non_uniform: 0.40
+  noise_level: 0.01
+  noise_type: "normal"
+  noise_params:
+    mean: 0.0
+    std: 0.01
+
+generation_ranges:
+  categorical_percentage: [0.10, 0.30]
+  normal_percentage: [0.60, 0.80]
+  truncated_normal_percentage: [0.10, 0.30]
+  lognormal_percentage: [0.05, 0.20]
+  uniform_categorical_percentage: [0.40, 0.80]
+  non_uniform_categorical_percentage: [0.20, 0.60]
+  noise_level: [0.005, 0.02]
+
+output:
+  output_dir: "test_datasets"
+  save_metadata: true
+  save_graphs: true
+  save_adjacency_matrices: true
+  metadata_format: "json"
+  graph_format: "npy"
+  adjacency_format: "csv"
+
+strategy:
+  strategy: "preset_variations"
+  seed: 42
+  parallel_workers: 1
+  progress_reporting: true
+  save_intermediate_results: true

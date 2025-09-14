@@ -1,0 +1,85 @@
+# Simple Manufacturing Configuration
+# Focused on core manufacturing parameters without extensive metadata
+
+# Core settings
+total_datasets: 100
+output_dir: "manufacturing_datasets"
+log_level: "INFO"
+random_seed: 42
+validate_config: true
+
+# Graph structure for manufacturing processes
+graph_structure:
+  # Manufacturing processes: 15-30 stations
+  num_nodes_range: [15, 30]
+  
+  # 5-12% root processes (raw materials, initial inputs)
+  root_nodes_percentage_range: [0.05, 0.12]
+  
+  # Moderate connectivity for manufacturing
+  edges_density_range: [0.30, 0.60]
+
+# Data generation for manufacturing
+data_generation:
+  # Manufacturing production runs: 2000-50000 samples
+  num_samples_range: [2000, 50000]
+  default_num_samples: 10000
+
+# Manufacturing distributions
+manufacturing:
+  # Manufacturing is predominantly continuous (temperatures, pressures, flows)
+  categorical_percentage: 0.10
+  continuous_percentage: 0.90
+  
+  # Manufacturing continuous distributions
+  continuous_distributions:
+    normal: 0.65        # Well-controlled processes
+    truncated_normal: 0.25  # Processes with physical limits
+    lognormal: 0.10     # Multiplicative effects
+  
+  # Manufacturing categorical distributions
+  categorical_distributions:
+    uniform: 0.45       # Equipment states
+    non_uniform: 0.55   # Material types, quality grades
+  
+  # Low noise due to process control
+  noise_level: 0.004
+  noise_type: "normal"
+  noise_params:
+    mean: 0.0
+    std: 0.004
+
+# Generation ranges for manufacturing
+generation_ranges:
+  # Low categorical percentage for manufacturing
+  categorical_percentage: [0.03, 0.18]
+  
+  # Favor normal distributions for controlled processes
+  normal_percentage: [0.55, 0.75]
+  truncated_normal_percentage: [0.20, 0.35]
+  lognormal_percentage: [0.05, 0.20]
+  
+  # Equipment states and material types
+  uniform_categorical_percentage: [0.35, 0.65]
+  non_uniform_categorical_percentage: [0.35, 0.65]
+  
+  # Low noise for manufacturing control
+  noise_level: [0.002, 0.010]
+
+# Output settings
+output:
+  output_dir: "manufacturing_datasets"
+  save_metadata: true
+  save_graphs: true
+  save_adjacency_matrices: true
+  metadata_format: "json"
+  graph_format: "npy"
+  adjacency_format: "csv"
+
+# Generation strategy
+strategy:
+  strategy: "mixed"  # Good coverage of manufacturing scenarios
+  seed: 42
+  parallel_workers: 2
+  progress_reporting: true
+  save_intermediate_results: false
