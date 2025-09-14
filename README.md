@@ -3,7 +3,7 @@
 ### Overview
 This repository explores and evaluates causal discovery algorithms for manufacturing datasets that contain mixed data types, as defined via dataset configuration files. Our goals are:
 
-- Build a reproducible benchmark across multiple causal discovery frameworks (e.g., ETIA, Py-Tetrad)
+- Build a reproducible benchmark across multiple causal discovery frameworks (e.g., Py-Tetrad)
 - Incorporate post-hoc graph pruning using background knowledge via a CausalAssembly workflow
 - Provide an inference pipeline that is data-type agnostic so algorithms are “plug-and-play”
 
@@ -14,7 +14,6 @@ This repository explores and evaluates causal discovery algorithms for manufactu
 - Data-type agnostic inference pipeline with a consistent interface
 
 ### Frameworks and Algorithms
-- ETIA (Experimental/Temporal/Interventional variants where applicable)
 - Py-Tetrad (wrappers for Tetrad algorithms such as FGES, RFCI)
 - Extensible registry to add new algorithms with minimal integration overhead
 
@@ -80,14 +79,6 @@ python -m inference_pipeline.main \
   --background_path path/to/background_constraints.json
 ```
 
-- Switch to ETIA-based algorithm
-```bash
-python -m inference_pipeline.main \
-  --dataset_dir causal_meta_dataset/dataset_001_config_001 \
-  --config_path inference_pipeline/config.py \
-  --algorithm etia \
-  --framework etia
-```
 
 Note: The exact flags may evolve; see `inference_pipeline/config.py` and `inference_pipeline/main.py` for authoritative options.
 
@@ -103,9 +94,7 @@ flowchart LR
   B --> C["Preprocessing<br/>(type-aware normalization)"]
   C --> D{Algorithm Adapter}
   D -->|Py-Tetrad| E[FGES/RFCI/...] 
-  D -->|ETIA| F[ETIA Variants]
   E --> G[Candidate Graph]
-  F --> G[Candidate Graph]
   G --> H{"Optional Post-hoc Pruning<br/>(CausalAssembly)"}
   H --> I[Final Graph]
   I --> J["Metrics + Reports<br/>(JSON/CSV)"]
