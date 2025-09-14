@@ -99,16 +99,16 @@ The pipeline normalizes inputs and delegates type-specific handling to algorithm
 ### Pipeline Diagram
 ```mermaid
 flowchart LR
-  A[Input Data\n(mixed types)] --> B[Config Loader\n(dataset + params)]
-  B --> C[Preprocessing\n(type-aware normalization)]
+  A["Input Data<br/>(mixed types)"] --> B["Config Loader<br/>(dataset + params)"]
+  B --> C["Preprocessing<br/>(type-aware normalization)"]
   C --> D{Algorithm Adapter}
   D -->|Py-Tetrad| E[FGES/RFCI/...] 
   D -->|ETIA| F[ETIA Variants]
   E --> G[Candidate Graph]
   F --> G[Candidate Graph]
-  G --> H{Optional Post-hoc Pruning\n(CausalAssembly)}
+  G --> H{"Optional Post-hoc Pruning<br/>(CausalAssembly)"}
   H --> I[Final Graph]
-  I --> J[Metrics + Reports\n(JSON/CSV)]
+  I --> J["Metrics + Reports<br/>(JSON/CSV)"]
 ```
 
 ### Results and Evaluation
