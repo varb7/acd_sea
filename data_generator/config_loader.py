@@ -27,11 +27,12 @@ class ConfigLoader:
             config_dir: Directory to search for configuration files
         """
         self.config_dir = config_dir or Path(__file__).parent
+        self.configs_dir = self.config_dir / "configs"
+        # Build default search order across base dir and configs/ subdir
+        default_names = ["config.yaml", "config.yml", "config.json", "config.py"]
         self.default_config_paths = [
-            self.config_dir / "config.yaml",
-            self.config_dir / "config.yml", 
-            self.config_dir / "config.json",
-            self.config_dir / "config.py"
+            *(self.config_dir / name for name in default_names),
+            *(self.configs_dir / name for name in default_names),
         ]
     
     def load_config(self, 
@@ -80,8 +81,7 @@ class ConfigLoader:
     
     def _load_from_file(self, config_path: Union[str, Path], config_type: Optional[str] = None) -> DataGeneratorConfig:
         """Load configuration from a specific file."""
-        config_path = Path(config_path)
-        
+        config_path = self._resolve_config_path(Path(config_path))
         if not config_path.exists():
             raise FileNotFoundError(f"Configuration file not found: {config_path}")
         
@@ -135,6 +135,23 @@ class ConfigLoader:
         # If no config file found, return default
         print("No configuration file found, using default configuration")
         return create_default_config()
+
+    def _resolve_config_path(self, path: Path) -> Path:
+        """Resolve a config path by checking common locations.
+
+        Order: absolute path, CWD, config_dir, configs_dir.
+        """
+        candidates = [
+            path,
+            Path.cwd() / path,
+            self.config_dir / path.name if not path.is_absolute() else path,
+            self.configs_dir / path.name if not path.is_absolute() else path,
+        ]
+        for candidate in candidates:
+            if candidate.exists():
+                return candidate
+        # Return original; caller will handle missing file
+        return path
     
     def _apply_overrides(self, config: DataGeneratorConfig, overrides: Dict[str, Any]) -> DataGeneratorConfig:
         """Apply override values to configuration."""

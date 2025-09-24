@@ -9,7 +9,7 @@ from scdg import CausalDataGenerator
 
 from .utils import save_dataset, get_equation_type
 from .structural_patterns import add_structural_variations
-from .temporal_utils import generate_temporal_order_from_stations
+from .temporal_utils import generate_temporal_order_from_stations, assign_mock_stations
 from .manufacturing_distributions import ManufacturingDistributionManager
 from .dynamic_config_generator import DynamicConfigGenerator, create_diverse_configs_from_presets, analyze_config_diversity
 
@@ -54,7 +54,7 @@ def generate_meta_dataset_with_manufacturing_distributions(
     
     # Use default manufacturing config if not provided
     if manufacturing_config is None:
-        from config import MANUFACTURING_CONFIG
+        # Legacy import removed; manufacturing config should be provided via loader/config
         manufacturing_config = MANUFACTURING_CONFIG
     
     # Set default index file if not provided
@@ -187,11 +187,11 @@ def generate_meta_dataset_with_diverse_configurations(
     
     # Use default configurations if not provided
     if base_config is None:
-        from config import MANUFACTURING_CONFIG
+        # Legacy import removed; manufacturing config should be provided via loader/config
         base_config = MANUFACTURING_CONFIG
     
     if parameter_ranges is None:
-        from config import GENERATION_CONFIG
+        # Legacy import removed; use generation ranges from loaded config
         parameter_ranges = GENERATION_CONFIG
     
     # Set default index file if not provided
@@ -300,8 +300,18 @@ def generate_meta_dataset_with_diverse_configurations(
                 root_distributions_override=scdg_distributions
             )
             
-            # Create metadata
-            temporal_order = list(G.nodes())
+            # Create station-wise temporal order (no intra-station semantics)
+            topo_nodes = list(nx.topological_sort(G))
+            raw_assignment = assign_mock_stations(topo_nodes, num_stations=3, graph=G)
+            station_map = {node: raw_assignment[node].split('_')[0] for node in raw_assignment}
+            ordered_stations = sorted(set(station_map.values()), key=lambda s: int(s.replace("Station", "")))
+            station_to_nodes = {s: [] for s in ordered_stations}
+            for n in topo_nodes:
+                station_to_nodes[station_map[n]].append(n)
+            station_blocks = [station_to_nodes[s] for s in ordered_stations]
+            temporal_order = [n for block in station_blocks for n in block]
+
+            # Build adjacency with station-wise order
             adj_matrix = nx.to_numpy_array(G, nodelist=temporal_order, dtype=int)
             root_percentage = (root_nodes / num_nodes) * 100
             
@@ -311,6 +321,9 @@ def generate_meta_dataset_with_diverse_configurations(
             
             metadata = {
                 "temporal_order": temporal_order,
+                "station_blocks": station_blocks,
+                "station_names": ordered_stations,
+                "station_map": station_map,
                 "num_nodes": num_nodes,
                 "edges": edges,
                 "equation_type": equation_type,
@@ -344,7 +357,7 @@ def generate_configurations_for_strategy(strategy, total_datasets, base_config, 
     Generate configurations based on the specified strategy.
     """
     if strategy == "preset_variations":
-        from config import MANUFACTURING_CONFIG
+        # Legacy import removed; manufacturing config should be provided via loader/config
         # Create simple variations of the manufacturing config
         configs = []
         base_config = MANUFACTURING_CONFIG.copy()
@@ -385,7 +398,7 @@ def generate_configurations_for_strategy(strategy, total_datasets, base_config, 
         return configs[:total_datasets]  # Limit to requested number
     
     elif strategy == "mixed":
-        from config import MANUFACTURING_CONFIG
+        # Legacy import removed; manufacturing config should be provided via loader/config
         configs = []
         
         # Add preset variations (same as preset_variations strategy)

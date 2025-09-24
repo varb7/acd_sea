@@ -1,0 +1,56 @@
+total_datasets: 120
+output_dir: "discrete_manufacturing_datasets"
+log_level: "INFO"
+random_seed: 42
+validate_config: true
+
+graph_structure:
+  num_nodes_range: [10, 25]
+  root_nodes_percentage_range: [0.08, 0.20]
+  edges_density_range: [0.25, 0.55]
+
+data_generation:
+  num_samples_range: [1000, 25000]
+  default_num_samples: 5000
+
+manufacturing:
+  categorical_percentage: 0.25
+  continuous_percentage: 0.75
+  continuous_distributions:
+    normal: 0.70
+    truncated_normal: 0.20
+    lognormal: 0.10
+  categorical_distributions:
+    uniform: 0.60
+    non_uniform: 0.40
+  noise_level: 0.008
+  noise_type: "normal"
+  noise_params:
+    mean: 0.0
+    std: 0.008
+
+generation_ranges:
+  categorical_percentage: [0.10, 0.35]
+  normal_percentage: [0.60, 0.85]
+  truncated_normal_percentage: [0.10, 0.30]
+  lognormal_percentage: [0.05, 0.20]
+  uniform_categorical_percentage: [0.50, 0.80]
+  non_uniform_categorical_percentage: [0.20, 0.50]
+  noise_level: [0.003, 0.015]
+
+output:
+  output_dir: "discrete_manufacturing_datasets"
+  save_metadata: true
+  save_graphs: true
+  save_adjacency_matrices: true
+  metadata_format: "json"
+  graph_format: "npy"
+  adjacency_format: "csv"
+
+strategy:
+  strategy: "preset_variations"
+  seed: 42
+  parallel_workers: 2
+  progress_reporting: true
+  save_intermediate_results: false
+

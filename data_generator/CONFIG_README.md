@@ -9,7 +9,7 @@ The data generator now supports a flexible, validated configuration system that 
 - Use preset configurations for common use cases
 - Override parameters via command line arguments or environment variables
 - Validate configurations before running
-- Maintain backward compatibility with the legacy `config.py` system
+- Legacy `config.py` support has been removed. Use YAML/JSON configs under `data_generator/configs/`.
 
 ## Quick Start
 
@@ -98,16 +98,7 @@ You can also use JSON format:
 
 ### Python Configuration (Legacy)
 
-The legacy `config.py` format is still supported:
-
-```python
-TOTAL_DATASETS = 100
-OUTPUT_DIR = "causal_meta_dataset"
-MANUFACTURING_CONFIG = {
-    "categorical_percentage": 0.10,
-    # ... other parameters
-}
-```
+Deprecated and removed. Please use YAML or JSON.
 
 ## Preset Configurations
 
@@ -165,7 +156,7 @@ python main.py [options]
 - `--dry-run`: Show configuration without generating data
 - `--validate-only`: Only validate configuration
 - `--verbose, -v`: Enable verbose output
-- `--use-legacy`: Use legacy configuration system
+- [Deprecated] `--use-legacy`: legacy configuration removed; use YAML configs
 
 ### Examples
 ```bash
@@ -181,8 +172,7 @@ python main.py --config config.yaml --validate-only
 # Dry run to see what would be generated
 python main.py --preset minimal --dry-run
 
-# Use legacy configuration
-python main.py --use-legacy
+Deprecated and removed.
 ```
 
 ## Environment Variables
@@ -291,23 +281,7 @@ python config_loader.py create large_scale_template.yaml large_scale
 
 ## Migration from Legacy Configuration
 
-If you're using the old `config.py` system, you can migrate gradually:
-
-1. **Keep using legacy**: Use `--use-legacy` flag
-2. **Convert to new format**: Use the config loader to convert
-3. **Use both**: The new system can load legacy configurations
-
-### Converting Legacy Config
-```python
-from data_generator.config_loader import ConfigLoader
-
-# Load legacy config
-loader = ConfigLoader()
-config = loader.load_config(config_path="config.py")
-
-# Save as YAML
-config.to_yaml("new_config.yaml")
-```
+All configurations should use YAML/JSON via the loader. Legacy support removed.
 
 ## Troubleshooting
 

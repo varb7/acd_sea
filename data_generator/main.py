@@ -4,8 +4,10 @@ import argparse
 import sys
 from pathlib import Path
 
+import logging
 from generator.dag_generator import generate_meta_dataset, generate_meta_dataset_with_manufacturing_distributions
 from generator.dag_generator_enhanced import generate_meta_dataset_with_diverse_configurations
+from generator.strategies import generate_csuite_meta_dataset
 from config_loader import ConfigLoader, load_config_from_args, load_config_from_env
 from config_schema import DataGeneratorConfig
 
@@ -47,18 +49,18 @@ Examples:
     # Generation strategy
     strategy_group = parser.add_argument_group('Generation Strategy')
     strategy_group.add_argument('--strategy', type=str,
-                               choices=['random', 'preset_variations', 'gradient', 'mixed'],
+                               choices=['random', 'preset_variations', 'gradient', 'mixed', 'csuite'],
                                help='Generation strategy')
     strategy_group.add_argument('--workers', type=int,
                                help='Number of parallel workers')
     
-    # Legacy options
-    legacy_group = parser.add_argument_group('Legacy Options')
+    # Legacy options (deprecated)
+    legacy_group = parser.add_argument_group('Legacy Options (deprecated)')
     legacy_group.add_argument('--use-legacy', action='store_true',
-                             help='Use legacy configuration system (config.py)')
+                             help='[DEPRECATED] Legacy config.py is no longer supported')
     legacy_group.add_argument('--legacy-strategy', type=str,
                              choices=['manufacturing', 'original'],
-                             help='Legacy generation strategy')
+                             help='[DEPRECATED] Legacy strategies are no longer supported')
     
     # Other options
     parser.add_argument('--dry-run', action='store_true',
@@ -73,7 +75,7 @@ Examples:
     try:
         # Load configuration
         if args.use_legacy:
-            config = load_legacy_config()
+            raise RuntimeError("--use-legacy is deprecated. Please use YAML configs under data_generator/configs/.")
         elif args.env:
             config = load_config_from_env()
         else:
@@ -103,14 +105,14 @@ Examples:
         
         # Validate configuration if requested
         if args.validate_only:
-            print("✅ Configuration is valid")
+            logging.info("Configuration is valid")
             if args.verbose:
                 print_config_summary(config)
             return 0
         
         # Show configuration if dry run
         if args.dry_run:
-            print("🔍 Dry run - Configuration:")
+            logging.info("Dry run - Configuration:")
             print_config_summary(config)
             return 0
         
@@ -118,48 +120,33 @@ Examples:
         return run_generation(config, args.verbose)
         
     except Exception as e:
-        print(f"❌ Error: {e}")
+        logging.error(f"Error: {e}")
         if args.verbose:
             import traceback
             traceback.print_exc()
         return 1
 
 
-def load_legacy_config():
-    """Load configuration using the legacy system."""
-    try:
-        from config import TOTAL_DATASETS, OUTPUT_DIR, MANUFACTURING_CONFIG, GENERATION_CONFIG
-        
-        # Convert legacy config to new format
-        config_dict = {
-            'total_datasets': TOTAL_DATASETS,
-            'output_dir': OUTPUT_DIR,
-            'manufacturing': MANUFACTURING_CONFIG,
-            'generation_ranges': GENERATION_CONFIG,
-        }
-        
-        return DataGeneratorConfig.from_dict(config_dict)
-    except ImportError as e:
-        raise RuntimeError(f"Failed to load legacy configuration: {e}")
+# Legacy loading removed; config.py is no longer supported
 
 
 def print_config_summary(config: DataGeneratorConfig):
     """Print a summary of the configuration."""
-    print(f"Total datasets: {config.total_datasets}")
-    print(f"Output directory: {config.output_dir}")
-    print(f"Strategy: {config.strategy.strategy}")
-    print(f"Random seed: {config.random_seed}")
-    print(f"Graph nodes range: {config.graph_structure.num_nodes_range}")
-    print(f"Sample size range: {config.data_generation.num_samples_range}")
-    print(f"Parallel workers: {config.strategy.parallel_workers}")
+    logging.info(f"Total datasets: {config.total_datasets}")
+    logging.info(f"Output directory: {config.output_dir}")
+    logging.info(f"Strategy: {config.strategy.strategy}")
+    logging.info(f"Random seed: {config.random_seed}")
+    logging.info(f"Graph nodes range: {config.graph_structure.num_nodes_range}")
+    logging.info(f"Sample size range: {config.data_generation.num_samples_range}")
+    logging.info(f"Parallel workers: {config.strategy.parallel_workers}")
 
 
 def run_generation(config: DataGeneratorConfig, verbose: bool = False):
     """Run the data generation process."""
     if verbose:
-        print("🚀 Starting data generation...")
+        logging.info("Starting data generation...")
         print_config_summary(config)
-        print("=" * 60)
+        logging.info("=" * 60)
     
     # Create output directory
     output_path = Path(config.output_dir)
@@ -167,7 +154,7 @@ def run_generation(config: DataGeneratorConfig, verbose: bool = False):
     
     # Choose generation method based on strategy
     if config.strategy.strategy == "preset_variations":
-        print("Using preset variations strategy...")
+        logging.info("Using preset variations strategy...")
         generate_meta_dataset_with_diverse_configurations(
             total_datasets=config.total_datasets,
             output_dir=config.output_dir,
@@ -175,7 +162,7 @@ def run_generation(config: DataGeneratorConfig, verbose: bool = False):
             seed=config.random_seed
         )
     elif config.strategy.strategy == "random":
-        print("Using random configuration strategy...")
+        logging.info("Using random configuration strategy...")
         generate_meta_dataset_with_diverse_configurations(
             total_datasets=config.total_datasets,
             output_dir=config.output_dir,
@@ -183,7 +170,7 @@ def run_generation(config: DataGeneratorConfig, verbose: bool = False):
             seed=config.random_seed
         )
     elif config.strategy.strategy == "gradient":
-        print("Using gradient configuration strategy...")
+        logging.info("Using gradient configuration strategy...")
         generate_meta_dataset_with_diverse_configurations(
             total_datasets=config.total_datasets,
             output_dir=config.output_dir,
@@ -191,25 +178,36 @@ def run_generation(config: DataGeneratorConfig, verbose: bool = False):
             seed=config.random_seed
         )
     elif config.strategy.strategy == "mixed":
-        print("Using mixed configuration strategy...")
+        logging.info("Using mixed configuration strategy...")
         generate_meta_dataset_with_diverse_configurations(
             total_datasets=config.total_datasets,
             output_dir=config.output_dir,
             config_strategy="mixed",
             seed=config.random_seed
         )
+    elif config.strategy.strategy == "csuite":
+        logging.info("Using CSuite-style configuration strategy...")
+        generate_csuite_meta_dataset(
+            patterns=None,  # Use all patterns
+            num_nodes_range=(2, 5),
+            num_samples=1000,
+            output_dir=config.output_dir,
+            seed=config.random_seed
+        )
     else:
         # Fallback to manufacturing distributions
-        print("Using manufacturing distributions strategy...")
+        logging.info("Using manufacturing distributions strategy...")
         generate_meta_dataset_with_manufacturing_distributions(
             total_datasets=config.total_datasets,
             output_dir=config.output_dir,
             manufacturing_config=config.manufacturing.__dict__
         )
     
-    print(f"✅ Successfully generated {config.total_datasets} datasets in {config.output_dir}")
+    logging.info(f"Successfully generated {config.total_datasets} datasets in {config.output_dir}")
     return 0
 
 
 if __name__ == "__main__":
+    # Basic logging setup; can be overridden by callers
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
     sys.exit(main())

@@ -29,9 +29,8 @@ try:
     from tetrad_fci import TetradFCI
     from tetrad_cpc import TetradCPC
     from tetrad_cfci import TetradCFCI
-    from tetrad_boss import TetradBOSS
     TETRAD_AVAILABLE = True
-    print("[INFO] Tetrad algorithms (RFCI, FGES, GFCI, FCI, FCI-Max, CPC, CFCI, BOSS) available")
+    print("[INFO] Tetrad algorithms (RFCI, FGES, GFCI, FCI, FCI-Max, CPC, CFCI) available")
 except ImportError:
     TETRAD_AVAILABLE = False
     print("[WARNING] Tetrad algorithms not available - tetrad_* modules not found")
@@ -45,14 +44,7 @@ except ImportError:
     TXGES_AVAILABLE = False
     print("[INFO] TXGES algorithm not available - txges not installed")
 
-# Optional external algorithms (BOSS)
-try:
-    from .boss_adapter import run_boss
-    BOSS_AVAILABLE = True
-    print("[INFO] BOSS adapter available")
-except Exception:
-    BOSS_AVAILABLE = False
-    print("[INFO] BOSS not available")
+# Optional external algorithms (BOSS) removed per request
 
 
 
@@ -76,6 +68,8 @@ class BaseAlgorithm(ABC):
     def __init__(self, name: str, **kwargs):
         self.name = name
         self.config = kwargs
+        self.use_prior_knowledge = False
+        self.prior_knowledge = None
         
     @abstractmethod
     def _preprocess(self, data: np.ndarray, columns: list) -> Tuple[np.ndarray, Dict[str, Any]]:
@@ -223,6 +217,17 @@ class TetradRFCIAlgorithm(BaseAlgorithm):
             
             # Use our modular RFCI implementation with optimized parameters
             rfci = TetradRFCI(alpha=self.alpha, depth=self.depth)
+            
+            # Apply prior knowledge if available
+            if self.use_prior_knowledge and self.prior_knowledge:
+                try:
+                    from .prior_knowledge import create_tetrad_prior_knowledge
+                    prior = create_tetrad_prior_knowledge(self.prior_knowledge, list(preprocessed_data.columns))
+                    if prior is not None:
+                        rfci.setKnowledge(prior)
+                except Exception as e:
+                    print(f"[WARNING] Could not apply prior knowledge to RFCI: {e}")
+            
             adj_matrix = rfci.run(preprocessed_data)
             
             print(f"[INFO] Tetrad RFCI completed successfully. Matrix shape: {adj_matrix.shape}")
@@ -389,53 +394,7 @@ class AlgorithmRegistry:
             self.register_algorithm(TetradCFCIAlgorithm())
         except Exception as e:
             print(f"[WARNING] Could not register TetradCFCI: {e}")
-        # SAM not supported in current Tetrad build; consider external methods like BOSS/DAGMA separately
-        # Add Tetrad BOSS (native via pytetrad.tools.search)
-        try:
-            class TetradBOSSAlgorithm(BaseAlgorithm):
-                def __init__(self, **kwargs):
-                    super().__init__("TetradBOSS", **kwargs)
-                    self.penalty_discount = kwargs.get('penalty_discount', 2.0)
-                    self.use_bes = kwargs.get('use_bes', True)
-                    self.num_starts = kwargs.get('num_starts', 10)
-                    self.threads = kwargs.get('threads', max(1, (os.cpu_count() or 1)))
-                def _preprocess(self, data: np.ndarray, columns: list):
-                    df = pd.DataFrame(data, columns=columns)
-                    return df, { 'original_shape': data.shape, 'columns': columns }
-                def _run_algorithm(self, preprocessed_data: pd.DataFrame, metadata: Dict[str, Any]) -> np.ndarray:
-                    from tetrad_boss import run_boss_tetrad
-                    return run_boss_tetrad(
-                        preprocessed_data,
-                        list(preprocessed_data.columns),
-                        penalty_discount=self.penalty_discount,
-                        use_bes=self.use_bes,
-                        num_starts=self.num_starts,
-                        threads=self.threads,
-                    )
-                def _postprocess(self, raw_output: np.ndarray, original_shape: Tuple[int, int], metadata: Dict[str, Any]) -> np.ndarray:
-                    if raw_output is None or np.any(np.isnan(raw_output)):
-                        return np.zeros((original_shape[1], original_shape[1]))
-                    out = (raw_output != 0).astype(int)
-                    return out if out.shape == (original_shape[1], original_shape[1]) else np.zeros((original_shape[1], original_shape[1]))
-            self.register_algorithm(TetradBOSSAlgorithm())
-        except Exception as e:
-            print(f"[WARNING] Could not register TetradBOSS: {e}")
-        # Add BOSS if available
-        if 'BOSS_AVAILABLE' in globals() and BOSS_AVAILABLE:
-            class BOSSAlgorithm(BaseAlgorithm):
-                def __init__(self, **kwargs):
-                    super().__init__("BOSS", **kwargs)
-                def _preprocess(self, data: np.ndarray, columns: list):
-                    return data, { 'original_shape': data.shape, 'columns': columns }
-                def _run_algorithm(self, preprocessed_data: np.ndarray, metadata: Dict[str, Any]) -> np.ndarray:
-                    adj = run_boss(preprocessed_data)
-                    return adj if adj is not None else np.zeros((preprocessed_data.shape[1], preprocessed_data.shape[1]))
-                def _postprocess(self, raw_output: np.ndarray, original_shape: Tuple[int, int], metadata: Dict[str, Any]) -> np.ndarray:
-                    if raw_output is None or np.any(np.isnan(raw_output)):
-                        return np.zeros((original_shape[1], original_shape[1]))
-                    out = (raw_output != 0).astype(int)
-                    return out if out.shape == (original_shape[1], original_shape[1]) else np.zeros((original_shape[1], original_shape[1]))
-            self.register_algorithm(BOSSAlgorithm())
+        # BOSS/SAM/DAGMA related adapters removed per request
 
         # DAGMA removed per request
         # Add FCI
@@ -494,12 +453,19 @@ class AlgorithmRegistry:
         """List all available algorithms"""
         return list(self._algorithms.keys())
         
-    def run_algorithm(self, name: str, data: np.ndarray, columns: list) -> Optional[AlgorithmResult]:
-        """Run a specific algorithm"""
+    def run_algorithm(self, name: str, data: np.ndarray, columns: list, 
+                     use_prior_knowledge: bool = False, prior_knowledge: Optional[Dict] = None) -> Optional[AlgorithmResult]:
+        """Run a specific algorithm with optional prior knowledge"""
         algorithm = self.get_algorithm(name)
         if algorithm is None:
             print(f"[ERROR] Algorithm '{name}' not found")
             return None
+        
+        # Pass prior knowledge to algorithm if supported
+        if hasattr(algorithm, 'use_prior_knowledge'):
+            algorithm.use_prior_knowledge = use_prior_knowledge
+        if hasattr(algorithm, 'prior_knowledge'):
+            algorithm.prior_knowledge = prior_knowledge
             
         return algorithm.run(data, columns)
 
