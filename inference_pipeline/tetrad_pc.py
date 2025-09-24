@@ -18,6 +18,8 @@ class TetradPC:
         self.alpha = kwargs.get("alpha", 0.01)
         self.depth = kwargs.get("depth", -1)
         self.include_undirected = kwargs.get("include_undirected", True)
+        self.use_prior_knowledge = kwargs.get("use_prior_knowledge", False)
+        self.prior_knowledge = kwargs.get("prior_knowledge", None)
         self._ensure_jvm(); self._import_tetrad_modules()
 
     def _ensure_jvm(self):
@@ -96,6 +98,18 @@ class TetradPC:
         indep = self._indep(tetrad_data, cats, cont)
         alg = self.search.Pc(indep)
         if hasattr(alg, "setDepth"): alg.setDepth(self.depth)
+        
+        # Apply prior knowledge if available
+        if self.use_prior_knowledge and self.prior_knowledge:
+            try:
+                from .utils.prior_knowledge import create_tetrad_prior_knowledge
+                prior = create_tetrad_prior_knowledge(self.prior_knowledge, columns)
+                if prior is not None:
+                    alg.setKnowledge(prior)
+            except Exception as e:
+                import logging
+                logging.warning(f"Could not apply prior knowledge to PC: {e}")
+        
         cpdag = alg.search()
         return self._graph_to_adjacency(cpdag, columns)
 
@@ -106,8 +120,16 @@ def run_pc(
     alpha: float = 0.01,
     depth: int = -1,
     include_undirected: bool = True,
+    use_prior_knowledge: bool = False,
+    prior_knowledge: Optional[Dict] = None,
 ) -> np.ndarray:
-    pc = TetradPC(alpha=alpha, depth=depth, include_undirected=include_undirected)
+    pc = TetradPC(
+        alpha=alpha, 
+        depth=depth, 
+        include_undirected=include_undirected,
+        use_prior_knowledge=use_prior_knowledge,
+        prior_knowledge=prior_knowledge
+    )
     return pc.run(data, columns)
 
 

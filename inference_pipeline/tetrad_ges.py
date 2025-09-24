@@ -19,6 +19,8 @@ class TetradGES:
         self.equivalent_sample_size = kwargs.get("equivalent_sample_size", 10.0)
         self.orient_cpdag_to_dag = kwargs.get("orient_cpdag_to_dag", True)
         self.include_undirected = kwargs.get("include_undirected", True)
+        self.use_prior_knowledge = kwargs.get("use_prior_knowledge", False)
+        self.prior_knowledge = kwargs.get("prior_knowledge", None)
         self._ensure_jvm(); self._import_tetrad_modules()
 
     def _ensure_jvm(self):
@@ -103,7 +105,20 @@ class TetradGES:
         if df.empty: raise ValueError("Input data cannot be empty.")
         tetrad_data, cats, cont = self._convert(df)
         sc = self._score_fn(tetrad_data, cats, cont)
-        cpdag = self.search.Ges(sc).search()
+        alg = self.search.Ges(sc)
+        
+        # Apply prior knowledge if available
+        if self.use_prior_knowledge and self.prior_knowledge:
+            try:
+                from .utils.prior_knowledge import create_tetrad_prior_knowledge
+                prior = create_tetrad_prior_knowledge(self.prior_knowledge, columns)
+                if prior is not None:
+                    alg.setKnowledge(prior)
+            except Exception as e:
+                import logging
+                logging.warning(f"Could not apply prior knowledge to GES: {e}")
+        
+        cpdag = alg.search()
         if self.orient_cpdag_to_dag:
             try:
                 dag = self.graph.GraphTransforms.dagFromCpdag(cpdag)
@@ -121,12 +136,16 @@ def run_ges(
     equivalent_sample_size: float = 10.0,
     orient_cpdag_to_dag: bool = True,
     include_undirected: bool = True,
+    use_prior_knowledge: bool = False,
+    prior_knowledge: Optional[Dict] = None,
 ) -> np.ndarray:
     ges = TetradGES(
         penalty_discount=penalty_discount,
         equivalent_sample_size=equivalent_sample_size,
         orient_cpdag_to_dag=orient_cpdag_to_dag,
         include_undirected=include_undirected,
+        use_prior_knowledge=use_prior_knowledge,
+        prior_knowledge=prior_knowledge
     )
     return ges.run(data, columns)
 
