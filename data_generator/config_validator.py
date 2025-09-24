@@ -12,7 +12,26 @@ from typing import List, Dict, Any, Optional, Tuple
 import yaml
 import json
 
-from .config_schema import DataGeneratorConfig, GraphStructureConfig, DataGenerationConfig, ManufacturingConfig, GenerationRangesConfig, OutputConfig, GenerationStrategyConfig
+try:
+    from .config_schema import (
+        DataGeneratorConfig,
+        GraphStructureConfig,
+        DataGenerationConfig,
+        ManufacturingConfig,
+        GenerationRangesConfig,
+        OutputConfig,
+        GenerationStrategyConfig,
+    )
+except ImportError:
+    from config_schema import (
+        DataGeneratorConfig,
+        GraphStructureConfig,
+        DataGenerationConfig,
+        ManufacturingConfig,
+        GenerationRangesConfig,
+        OutputConfig,
+        GenerationStrategyConfig,
+    )
 
 
 class ConfigValidationError(Exception):

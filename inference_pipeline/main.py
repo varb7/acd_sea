@@ -4,10 +4,12 @@ from utils.io_utils import load_datasets, save_results
 from utils.metrics_utils import compute_data_properties
 from utils.algorithms import AlgorithmRegistry, compute_metrics, default_metrics
 from utils.graph_utils import build_true_graph
+from utils.prior_knowledge import format_prior_knowledge_for_algorithm, log_prior_knowledge_summary
 import networkx as  nx
 from typing import List
 import mlflow
 import numpy as np
+import argparse
 try:
     import torch
 except ImportError:
@@ -49,7 +51,7 @@ def make_serializable(obj):
     except Exception:
         return str(obj)
 
-def main():
+def main(use_prior_knowledge=False, algorithms=None):
     datasets = load_datasets(INPUT_DIR)
     results = []
 
@@ -61,18 +63,40 @@ def main():
 
         props = compute_data_properties(data, adj)
 
+        # Prepare prior knowledge if enabled
+        prior_knowledge = None
+        if use_prior_knowledge:
+            try:
+                prior_knowledge = format_prior_knowledge_for_algorithm(metadata, "default")
+                log_prior_knowledge_summary(prior_knowledge, f"dataset_{i}")
+            except Exception as e:
+                print(f"Warning: Could not extract prior knowledge for dataset {i}: {e}")
+                prior_knowledge = None
+
         # Use the new AlgorithmRegistry system; enable fallbacks so we still run when Tetrad/JVM is unavailable
         registry = AlgorithmRegistry(enable_fallbacks=True)
-        algorithms = registry.list_algorithms()
+        available_algorithms = registry.list_algorithms()
+        
+        # Filter algorithms if specified
+        if algorithms:
+            algorithms_to_run = [algo for algo in available_algorithms if algo in algorithms]
+        else:
+            algorithms_to_run = available_algorithms
         
         metrics = {}
         max_possible_edges = dataset['true_adj_matrix'].size
         
-        for algo_name in algorithms:
+        for algo_name in algorithms_to_run:
             print(f"Running {algo_name}...")
             
-            # Run algorithm with timing
-            result = registry.run_algorithm(algo_name, dataset['data'].values, list(dataset['data'].columns))
+            # Run algorithm with timing and prior knowledge
+            result = registry.run_algorithm(
+                algo_name, 
+                dataset['data'].values, 
+                list(dataset['data'].columns),
+                use_prior_knowledge=use_prior_knowledge,
+                prior_knowledge=prior_knowledge
+            )
             
             if result is None:
                 metrics[algo_name] = {**default_metrics(), 'execution_time': 0.0}
@@ -93,6 +117,7 @@ def main():
                 row = {
                     'dataset_name': f"dataset_{i}",
                     'algorithm': algo_name,
+                    'use_prior_knowledge': use_prior_knowledge,
                     **{k: v for k, v in metadata.items() if k != 'temporal_order'},
                     **props,
                     **vals,
@@ -123,4 +148,24 @@ def main():
     print("Analysis complete. Results saved.")
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Run causal discovery with optional prior knowledge")
+    parser.add_argument('--use-prior-knowledge', action='store_true',
+                       help='Use prior knowledge from metadata')
+    parser.add_argument('--algorithms', nargs='+',
+                       help='Specific algorithms to run (default: all)')
+    parser.add_argument('--input-dir', type=str, default=INPUT_DIR,
+                       help='Input directory containing datasets')
+    parser.add_argument('--output-dir', type=str, default=OUTPUT_DIR,
+                       help='Output directory for results')
+    
+    args = parser.parse_args()
+    
+    # Update global variables if specified
+    if args.input_dir != INPUT_DIR:
+        import sys
+        sys.modules['config'].INPUT_DIR = args.input_dir
+    if args.output_dir != OUTPUT_DIR:
+        import sys
+        sys.modules['config'].OUTPUT_DIR = args.output_dir
+    
+    main(use_prior_knowledge=args.use_prior_knowledge, algorithms=args.algorithms)

@@ -49,6 +49,15 @@ def save_dcdi_bundle(folder, data_arr, dag_arr):
 def save_dataset(dataframe, adjacency_matrix, metadata, dataset_dir, base_name, index_file=None, split="train"):
     os.makedirs(dataset_dir, exist_ok=True)
 
+    # Align data columns to temporal order if provided
+    if isinstance(metadata, dict) and "temporal_order" in metadata:
+        try:
+            ordered_cols = list(metadata["temporal_order"])  # ensure list
+            if set(ordered_cols) == set(dataframe.columns):
+                dataframe = dataframe[ordered_cols]
+        except Exception:
+            pass
+
     # Save data
     dataframe.to_csv(os.path.join(dataset_dir, f"{base_name}.csv"), index=False)
 

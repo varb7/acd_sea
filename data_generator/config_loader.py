@@ -13,7 +13,20 @@ from typing import Optional, Dict, Any, Union
 import yaml
 import json
 
-from .config_schema import DataGeneratorConfig, create_default_config, create_minimal_config, create_large_scale_config
+try:
+    from .config_schema import (
+        DataGeneratorConfig,
+        create_default_config,
+        create_minimal_config,
+        create_large_scale_config,
+    )
+except ImportError:
+    from config_schema import (
+        DataGeneratorConfig,
+        create_default_config,
+        create_minimal_config,
+        create_large_scale_config,
+    )
 
 
 class ConfigLoader:

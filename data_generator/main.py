@@ -5,11 +5,19 @@ import sys
 from pathlib import Path
 
 import logging
-from generator.dag_generator import generate_meta_dataset, generate_meta_dataset_with_manufacturing_distributions
-from generator.dag_generator_enhanced import generate_meta_dataset_with_diverse_configurations
-from generator.strategies import generate_csuite_meta_dataset
-from config_loader import ConfigLoader, load_config_from_args, load_config_from_env
-from config_schema import DataGeneratorConfig
+try:
+    from generator.dag_generator import generate_meta_dataset, generate_meta_dataset_with_manufacturing_distributions
+    from generator.dag_generator_enhanced import generate_meta_dataset_with_diverse_configurations
+    from generator.strategies import generate_csuite_meta_dataset
+    from config_loader import ConfigLoader, load_config_from_args, load_config_from_env
+    from config_schema import DataGeneratorConfig
+except ImportError:
+    # Fallback for running as a package module
+    from data_generator.generator.dag_generator import generate_meta_dataset, generate_meta_dataset_with_manufacturing_distributions
+    from data_generator.generator.dag_generator_enhanced import generate_meta_dataset_with_diverse_configurations
+    from data_generator.generator.strategies import generate_csuite_meta_dataset
+    from data_generator.config_loader import ConfigLoader, load_config_from_args, load_config_from_env
+    from data_generator.config_schema import DataGeneratorConfig
 
 
 def main():
