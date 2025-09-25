@@ -9,7 +9,7 @@ from scdg import CausalDataGenerator
 
 from .utils import save_dataset, get_equation_type
 from .structural_patterns import add_structural_variations
-from .temporal_utils import generate_temporal_order_from_stations
+from .temporal_utils import generate_temporal_order_from_stations, assign_mock_stations
 from .manufacturing_distributions import ManufacturingDistributionManager
 
 def make_serializable(obj):
@@ -73,17 +73,29 @@ def generate_meta_dataset(total_datasets=10, output_dir="causal_meta_dataset", i
                 max_categories=4
             )
             G_cat = cdg_cat.G
-            temporal_order_cat = list(G_cat.nodes())
+            # Station-wise temporal order for categorical dataset
+            topo_nodes_cat = list(nx.topological_sort(G_cat))
+            raw_assignment_cat = assign_mock_stations(topo_nodes_cat, num_stations=3, graph=G_cat)
+            station_map_cat = {node: raw_assignment_cat[node].split('_')[0] for node in raw_assignment_cat}
+            ordered_stations_cat = sorted(set(station_map_cat.values()), key=lambda s: int(s.replace("Station", "")))
+            station_to_nodes_cat = {s: [] for s in ordered_stations_cat}
+            for n in topo_nodes_cat:
+                station_to_nodes_cat[station_map_cat[n]].append(n)
+            station_blocks_cat = [station_to_nodes_cat[s] for s in ordered_stations_cat]
+            temporal_order_cat = [n for block in station_blocks_cat for n in block]
             adj_matrix_cat = nx.to_numpy_array(G_cat, nodelist=temporal_order_cat, dtype=int)
             root_percentage = (root_nodes / num_nodes) * 100
             categorical_root_node_names = list(cdg_cat.root_nodes) if hasattr(cdg_cat, 'root_nodes') else []
             metadata_cat = {
                 "temporal_order": temporal_order_cat,
+                "station_blocks": station_blocks_cat,
+                "station_names": ordered_stations_cat,
+                "station_map": station_map_cat,
                 "num_nodes": num_nodes,
                 "edges": edges,
                 "equation_type": equation_type,
                 "root_percentage": root_percentage,
-                "categorical_root_percentage": 100.0  # All root nodes are categorical in this case
+                "categorical_root_percentage": 100.0
             }
             base_name_cat = f"dataset_{i}_cat"
             dataset_dir_cat = os.path.join(output_dir, base_name_cat)
@@ -201,7 +213,16 @@ def generate_meta_dataset_with_manufacturing_distributions(
             )
             
             G_mfg = cdg_mfg.G
-            temporal_order_mfg = list(G_mfg.nodes())
+            # Station-wise temporal order for manufacturing dataset
+            topo_nodes_mfg = list(nx.topological_sort(G_mfg))
+            raw_assignment_mfg = assign_mock_stations(topo_nodes_mfg, num_stations=3, graph=G_mfg)
+            station_map_mfg = {node: raw_assignment_mfg[node].split('_')[0] for node in raw_assignment_mfg}
+            ordered_stations_mfg = sorted(set(station_map_mfg.values()), key=lambda s: int(s.replace("Station", "")))
+            station_to_nodes_mfg = {s: [] for s in ordered_stations_mfg}
+            for n in topo_nodes_mfg:
+                station_to_nodes_mfg[station_map_mfg[n]].append(n)
+            station_blocks_mfg = [station_to_nodes_mfg[s] for s in ordered_stations_mfg]
+            temporal_order_mfg = [n for block in station_blocks_mfg for n in block]
             adj_matrix_mfg = nx.to_numpy_array(G_mfg, nodelist=temporal_order_mfg, dtype=int)
             root_percentage = (root_nodes / num_nodes) * 100
             
@@ -211,6 +232,9 @@ def generate_meta_dataset_with_manufacturing_distributions(
             
             metadata_mfg = {
                 "temporal_order": temporal_order_mfg,
+                "station_blocks": station_blocks_mfg,
+                "station_names": ordered_stations_mfg,
+                "station_map": station_map_mfg,
                 "num_nodes": num_nodes,
                 "edges": edges,
                 "equation_type": equation_type,
@@ -234,15 +258,27 @@ def generate_meta_dataset_with_manufacturing_distributions(
                 # Do not pass categorical_root_nodes
             )
             G_cont = cdg_cont.G
-            temporal_order_cont = list(G_cont.nodes())
+            # Station-wise temporal order for continuous dataset
+            topo_nodes_cont = list(nx.topological_sort(G_cont))
+            raw_assignment_cont = assign_mock_stations(topo_nodes_cont, num_stations=3, graph=G_cont)
+            station_map_cont = {node: raw_assignment_cont[node].split('_')[0] for node in raw_assignment_cont}
+            ordered_stations_cont = sorted(set(station_map_cont.values()), key=lambda s: int(s.replace("Station", "")))
+            station_to_nodes_cont = {s: [] for s in ordered_stations_cont}
+            for n in topo_nodes_cont:
+                station_to_nodes_cont[station_map_cont[n]].append(n)
+            station_blocks_cont = [station_to_nodes_cont[s] for s in ordered_stations_cont]
+            temporal_order_cont = [n for block in station_blocks_cont for n in block]
             adj_matrix_cont = nx.to_numpy_array(G_cont, nodelist=temporal_order_cont, dtype=int)
             metadata_cont = {
                 "temporal_order": temporal_order_cont,
+                "station_blocks": station_blocks_cont,
+                "station_names": ordered_stations_cont,
+                "station_map": station_map_cont,
                 "num_nodes": num_nodes,
                 "edges": edges,
                 "equation_type": equation_type,
                 "root_percentage": root_percentage,
-                "categorical_root_percentage": 0.0  # No categorical root nodes in continuous dataset
+                "categorical_root_percentage": 0.0
             }
             base_name_cont = f"dataset_{i}_cont"
             dataset_dir_cont = os.path.join(output_dir, base_name_cont)

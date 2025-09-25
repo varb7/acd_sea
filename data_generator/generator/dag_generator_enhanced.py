@@ -13,6 +13,18 @@ from .temporal_utils import generate_temporal_order_from_stations, assign_mock_s
 from .manufacturing_distributions import ManufacturingDistributionManager
 from .dynamic_config_generator import DynamicConfigGenerator, create_diverse_configs_from_presets, analyze_config_diversity
 
+# Robust import of config schema for defaults
+try:
+    # When running as script: sys.path[0] is data_generator/, so this works
+    from config_schema import DataGeneratorConfig
+except ImportError:
+    try:
+        # When imported as package module
+        from ..config_schema import DataGeneratorConfig
+    except ImportError:
+        # Fallback when running with project root on path
+        from data_generator.config_schema import DataGeneratorConfig
+
 def make_serializable(obj):
     if isinstance(obj, dict):
         return {k: make_serializable(v) for k, v in obj.items()}
@@ -185,14 +197,43 @@ def generate_meta_dataset_with_diverse_configurations(
         seed: Random seed
     """
     
-    # Use default configurations if not provided
-    if base_config is None:
-        # Legacy import removed; manufacturing config should be provided via loader/config
-        base_config = MANUFACTURING_CONFIG
-    
-    if parameter_ranges is None:
-        # Legacy import removed; use generation ranges from loaded config
-        parameter_ranges = GENERATION_CONFIG
+    # Use default configurations if not provided (derive from schema defaults)
+    if base_config is None or parameter_ranges is None:
+        _default_cfg = DataGeneratorConfig()
+        if base_config is None:
+            base_config = {
+                "categorical_percentage": _default_cfg.manufacturing.categorical_percentage,
+                "continuous_percentage": _default_cfg.manufacturing.continuous_percentage,
+                "continuous_distributions": dict(_default_cfg.manufacturing.continuous_distributions),
+                "categorical_distributions": dict(_default_cfg.manufacturing.categorical_distributions),
+                "noise_level": _default_cfg.manufacturing.noise_level,
+                "noise_params": dict(_default_cfg.manufacturing.noise_params),
+            }
+        if parameter_ranges is None:
+            gr = _default_cfg.generation_ranges
+            parameter_ranges = {
+                "categorical_percentage": gr.categorical_percentage,
+                "normal_percentage": gr.normal_percentage,
+                "truncated_normal_percentage": gr.truncated_normal_percentage,
+                "lognormal_percentage": gr.lognormal_percentage,
+                "uniform_categorical_percentage": gr.uniform_categorical_percentage,
+                "non_uniform_categorical_percentage": gr.non_uniform_categorical_percentage,
+                "noise_level": gr.noise_level,
+                "graph_structure": {
+                    "num_nodes_range": _default_cfg.graph_structure.num_nodes_range,
+                    "root_nodes_percentage_range": _default_cfg.graph_structure.root_nodes_percentage_range,
+                    "edges_density_range": _default_cfg.graph_structure.edges_density_range,
+                },
+                "data_generation": {
+                    "num_samples_range": _default_cfg.data_generation.num_samples_range,
+                    "default_num_samples": _default_cfg.data_generation.default_num_samples,
+                },
+                "relationship_types": {
+                    "linear": {"percentage": 0.6},
+                    "non_linear": {"percentage": 0.3},
+                    "interaction": {"percentage": 0.1},
+                },
+            }
     
     # Set default index file if not provided
     if index_file is None:
@@ -357,10 +398,9 @@ def generate_configurations_for_strategy(strategy, total_datasets, base_config, 
     Generate configurations based on the specified strategy.
     """
     if strategy == "preset_variations":
-        # Legacy import removed; manufacturing config should be provided via loader/config
-        # Create simple variations of the manufacturing config
+        # Create simple variations of the provided base_config
         configs = []
-        base_config = MANUFACTURING_CONFIG.copy()
+        base_config = base_config.copy()
         
         # Variation 1: More categorical
         config1 = base_config.copy()
@@ -398,11 +438,10 @@ def generate_configurations_for_strategy(strategy, total_datasets, base_config, 
         return configs[:total_datasets]  # Limit to requested number
     
     elif strategy == "mixed":
-        # Legacy import removed; manufacturing config should be provided via loader/config
         configs = []
         
         # Add preset variations (same as preset_variations strategy)
-        base_config = MANUFACTURING_CONFIG.copy()
+        base_config = base_config.copy()
         
         # Variation 1: More categorical
         config1 = base_config.copy()
@@ -424,7 +463,7 @@ def generate_configurations_for_strategy(strategy, total_datasets, base_config, 
         
         # Add random configs
         generator = DynamicConfigGenerator(base_config, parameter_ranges, seed=seed)
-        random_configs = generator.generate_config_batch(max(0, total_datasets - len(preset_configs)))
+        random_configs = generator.generate_config_batch(max(0, total_datasets - len(configs)))
         configs.extend(random_configs)
         
         return configs[:total_datasets]

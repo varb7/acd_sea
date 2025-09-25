@@ -167,6 +167,30 @@ def run_generation(config: DataGeneratorConfig, verbose: bool = False):
             total_datasets=config.total_datasets,
             output_dir=config.output_dir,
             config_strategy="preset_variations",
+            base_config=config.manufacturing.__dict__,
+            parameter_ranges={
+                "categorical_percentage": config.generation_ranges.categorical_percentage,
+                "normal_percentage": config.generation_ranges.normal_percentage,
+                "truncated_normal_percentage": config.generation_ranges.truncated_normal_percentage,
+                "lognormal_percentage": config.generation_ranges.lognormal_percentage,
+                "uniform_categorical_percentage": config.generation_ranges.uniform_categorical_percentage,
+                "non_uniform_categorical_percentage": config.generation_ranges.non_uniform_categorical_percentage,
+                "noise_level": config.generation_ranges.noise_level,
+                "graph_structure": {
+                    "num_nodes_range": config.graph_structure.num_nodes_range,
+                    "root_nodes_percentage_range": config.graph_structure.root_nodes_percentage_range,
+                    "edges_density_range": config.graph_structure.edges_density_range,
+                },
+                "data_generation": {
+                    "num_samples_range": config.data_generation.num_samples_range,
+                    "default_num_samples": config.data_generation.default_num_samples,
+                },
+                "relationship_types": {
+                    "linear": {"percentage": 0.6},
+                    "non_linear": {"percentage": 0.3},
+                    "interaction": {"percentage": 0.1},
+                },
+            },
             seed=config.random_seed
         )
     elif config.strategy.strategy == "random":
@@ -175,6 +199,30 @@ def run_generation(config: DataGeneratorConfig, verbose: bool = False):
             total_datasets=config.total_datasets,
             output_dir=config.output_dir,
             config_strategy="random",
+            base_config=config.manufacturing.__dict__,
+            parameter_ranges={
+                "categorical_percentage": config.generation_ranges.categorical_percentage,
+                "normal_percentage": config.generation_ranges.normal_percentage,
+                "truncated_normal_percentage": config.generation_ranges.truncated_normal_percentage,
+                "lognormal_percentage": config.generation_ranges.lognormal_percentage,
+                "uniform_categorical_percentage": config.generation_ranges.uniform_categorical_percentage,
+                "non_uniform_categorical_percentage": config.generation_ranges.non_uniform_categorical_percentage,
+                "noise_level": config.generation_ranges.noise_level,
+                "graph_structure": {
+                    "num_nodes_range": config.graph_structure.num_nodes_range,
+                    "root_nodes_percentage_range": config.graph_structure.root_nodes_percentage_range,
+                    "edges_density_range": config.graph_structure.edges_density_range,
+                },
+                "data_generation": {
+                    "num_samples_range": config.data_generation.num_samples_range,
+                    "default_num_samples": config.data_generation.default_num_samples,
+                },
+                "relationship_types": {
+                    "linear": {"percentage": 0.6},
+                    "non_linear": {"percentage": 0.3},
+                    "interaction": {"percentage": 0.1},
+                },
+            },
             seed=config.random_seed
         )
     elif config.strategy.strategy == "gradient":
@@ -183,6 +231,30 @@ def run_generation(config: DataGeneratorConfig, verbose: bool = False):
             total_datasets=config.total_datasets,
             output_dir=config.output_dir,
             config_strategy="gradient",
+            base_config=config.manufacturing.__dict__,
+            parameter_ranges={
+                "categorical_percentage": config.generation_ranges.categorical_percentage,
+                "normal_percentage": config.generation_ranges.normal_percentage,
+                "truncated_normal_percentage": config.generation_ranges.truncated_normal_percentage,
+                "lognormal_percentage": config.generation_ranges.lognormal_percentage,
+                "uniform_categorical_percentage": config.generation_ranges.uniform_categorical_percentage,
+                "non_uniform_categorical_percentage": config.generation_ranges.non_uniform_categorical_percentage,
+                "noise_level": config.generation_ranges.noise_level,
+                "graph_structure": {
+                    "num_nodes_range": config.graph_structure.num_nodes_range,
+                    "root_nodes_percentage_range": config.graph_structure.root_nodes_percentage_range,
+                    "edges_density_range": config.graph_structure.edges_density_range,
+                },
+                "data_generation": {
+                    "num_samples_range": config.data_generation.num_samples_range,
+                    "default_num_samples": config.data_generation.default_num_samples,
+                },
+                "relationship_types": {
+                    "linear": {"percentage": 0.6},
+                    "non_linear": {"percentage": 0.3},
+                    "interaction": {"percentage": 0.1},
+                },
+            },
             seed=config.random_seed
         )
     elif config.strategy.strategy == "mixed":
@@ -191,6 +263,30 @@ def run_generation(config: DataGeneratorConfig, verbose: bool = False):
             total_datasets=config.total_datasets,
             output_dir=config.output_dir,
             config_strategy="mixed",
+            base_config=config.manufacturing.__dict__,
+            parameter_ranges={
+                "categorical_percentage": config.generation_ranges.categorical_percentage,
+                "normal_percentage": config.generation_ranges.normal_percentage,
+                "truncated_normal_percentage": config.generation_ranges.truncated_normal_percentage,
+                "lognormal_percentage": config.generation_ranges.lognormal_percentage,
+                "uniform_categorical_percentage": config.generation_ranges.uniform_categorical_percentage,
+                "non_uniform_categorical_percentage": config.generation_ranges.non_uniform_categorical_percentage,
+                "noise_level": config.generation_ranges.noise_level,
+                "graph_structure": {
+                    "num_nodes_range": config.graph_structure.num_nodes_range,
+                    "root_nodes_percentage_range": config.graph_structure.root_nodes_percentage_range,
+                    "edges_density_range": config.graph_structure.edges_density_range,
+                },
+                "data_generation": {
+                    "num_samples_range": config.data_generation.num_samples_range,
+                    "default_num_samples": config.data_generation.default_num_samples,
+                },
+                "relationship_types": {
+                    "linear": {"percentage": 0.6},
+                    "non_linear": {"percentage": 0.3},
+                    "interaction": {"percentage": 0.1},
+                },
+            },
             seed=config.random_seed
         )
     elif config.strategy.strategy == "csuite":

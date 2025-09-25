@@ -91,14 +91,32 @@ class GenerationRangesConfig:
     noise_level: Tuple[float, float] = (0.001, 0.02)
     
     def __post_init__(self):
-        """Validate generation ranges."""
-        for attr_name in dir(self):
-            if not attr_name.startswith('_') and attr_name.endswith('_percentage'):
-                value = getattr(self, attr_name)
-                if not isinstance(value, tuple) or len(value) != 2:
-                    raise ValueError(f"{attr_name} must be a tuple of (min, max)")
-                if value[0] >= value[1]:
-                    raise ValueError(f"{attr_name} min must be less than max")
+        """Validate generation ranges and coerce YAML lists to tuples."""
+        # Coerce list -> tuple for all 2-length range fields
+        range_field_names = [
+            'categorical_percentage', 'normal_percentage', 'truncated_normal_percentage',
+            'lognormal_percentage', 'uniform_categorical_percentage', 'non_uniform_categorical_percentage',
+            'noise_level',
+        ]
+        for attr_name in range_field_names:
+            value = getattr(self, attr_name)
+            if isinstance(value, list) and len(value) == 2:
+                setattr(self, attr_name, (value[0], value[1]))
+        # Validate percentage ranges
+        for attr_name in [
+            'categorical_percentage', 'normal_percentage', 'truncated_normal_percentage',
+            'lognormal_percentage', 'uniform_categorical_percentage', 'non_uniform_categorical_percentage',
+        ]:
+            value = getattr(self, attr_name)
+            if not isinstance(value, tuple) or len(value) != 2:
+                raise ValueError(f"{attr_name} must be a tuple of (min, max)")
+            if value[0] >= value[1]:
+                raise ValueError(f"{attr_name} min must be less than max")
+        # Validate noise level
+        if not isinstance(self.noise_level, tuple) or len(self.noise_level) != 2:
+            raise ValueError("noise_level must be a tuple of (min, max)")
+        if self.noise_level[0] >= self.noise_level[1]:
+            raise ValueError("noise_level min must be less than max")
 
 
 @dataclass
