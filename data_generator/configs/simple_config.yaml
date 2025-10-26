@@ -1,0 +1,42 @@
+# Simple configuration for causal dataset generation
+# Generate datasets for algorithm testing
+
+num_datasets: 5
+output_dir: simple_test_datasets
+seed: 42
+
+# Graph structure parameters
+nodes_range: [5, 10]              # Min and max number of nodes
+root_percentage_range: [0.10, 0.30]  # Min and max % of nodes that are roots
+edge_density_range: [0.30, 0.80]   # Min and max edge density
+
+# Data generation parameters
+samples_range: [500, 2000]       # Min and max number of samples per dataset
+
+# Distribution configuration
+categorical_percentage: 0.10       # 10% of root nodes are categorical
+continuous_distributions:          # Breakdown of continuous distributions
+  normal: 0.60
+  truncated_normal: 0.30
+  lognormal: 0.10
+categorical_distributions:         # Breakdown of categorical distributions
+  uniform: 0.50
+  non_uniform: 0.50
+
+# Relationship types (how nodes relate to each other)
+relationship_mix:
+  linear: 0.60                     # 60% linear relationships
+  nonlinear: 0.30                  # 30% nonlinear relationships
+  mixed: 0.10                      # 10% mixed relationships
+
+# Noise parameters
+noise_level: 0.005
+
+# Prior knowledge extraction (station/temporal info)
+extract_station_info: true
+num_stations: 3
+
+# Output options
+save_train_test_split: true
+train_ratio: 0.8
+

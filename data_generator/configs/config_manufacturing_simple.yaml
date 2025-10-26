@@ -1,16 +1,16 @@
-total_datasets: 100
+total_datasets: 10
 output_dir: "manufacturing_datasets"
 log_level: "INFO"
 random_seed: 42
 validate_config: true
 
 graph_structure:
-  num_nodes_range: [15, 30]
+  num_nodes_range: [20, 25]
   root_nodes_percentage_range: [0.05, 0.12]
-  edges_density_range: [0.30, 0.60]
+  edges_density_range: [0.30, 0.40]
 
 data_generation:
-  num_samples_range: [2000, 50000]
+  num_samples_range: [10000, 20000]
   default_num_samples: 10000
 
 manufacturing:
