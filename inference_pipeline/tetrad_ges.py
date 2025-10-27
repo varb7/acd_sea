@@ -94,7 +94,7 @@ class TetradGES:
                     adj[i, j] = 1; adj[j, i] = 1
         return adj
 
-    def run(self, data: Union[pd.DataFrame, np.ndarray], columns: Optional[list] = None) -> np.ndarray:
+    def run(self, data: Union[pd.DataFrame, np.ndarray], columns: Optional[list] = None, prior: Optional[dict] = None) -> np.ndarray:
         if isinstance(data, np.ndarray):
             if columns is None: raise ValueError("Column names must be provided when input is a numpy array.")
             df = pd.DataFrame(data, columns=columns)
@@ -103,20 +103,23 @@ class TetradGES:
         else:
             raise ValueError("Input data must be a pandas DataFrame or numpy array.")
         if df.empty: raise ValueError("Input data cannot be empty.")
+        
+        # Build knowledge object if prior knowledge provided
+        knowledge = None
+        if prior is not None:
+            try:
+                from utils.tetrad_prior_knowledge import build_tetrad_knowledge
+                knowledge = build_tetrad_knowledge(prior, columns)
+            except Exception as e:
+                print(f"[WARNING] Could not build knowledge for GES: {e}")
+        
         tetrad_data, cats, cont = self._convert(df)
         sc = self._score_fn(tetrad_data, cats, cont)
         alg = self.search.Ges(sc)
         
-        # Apply prior knowledge if available
-        if self.use_prior_knowledge and self.prior_knowledge:
-            try:
-                from .utils.prior_knowledge import create_tetrad_prior_knowledge
-                prior = create_tetrad_prior_knowledge(self.prior_knowledge, columns)
-                if prior is not None:
-                    alg.setKnowledge(prior)
-            except Exception as e:
-                import logging
-                logging.warning(f"Could not apply prior knowledge to GES: {e}")
+        # Apply prior knowledge if provided
+        if knowledge is not None and hasattr(alg, "setKnowledge"):
+            alg.setKnowledge(knowledge)
         
         cpdag = alg.search()
         if self.orient_cpdag_to_dag:
@@ -136,17 +139,14 @@ def run_ges(
     equivalent_sample_size: float = 10.0,
     orient_cpdag_to_dag: bool = True,
     include_undirected: bool = True,
-    use_prior_knowledge: bool = False,
-    prior_knowledge: Optional[Dict] = None,
+    prior: Optional[Dict] = None,
 ) -> np.ndarray:
     ges = TetradGES(
         penalty_discount=penalty_discount,
         equivalent_sample_size=equivalent_sample_size,
         orient_cpdag_to_dag=orient_cpdag_to_dag,
         include_undirected=include_undirected,
-        use_prior_knowledge=use_prior_knowledge,
-        prior_knowledge=prior_knowledge
     )
-    return ges.run(data, columns)
+    return ges.run(data, columns, prior=prior)
 
 

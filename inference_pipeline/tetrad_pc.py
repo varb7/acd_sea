@@ -85,7 +85,7 @@ class TetradPC:
                     adj[i, j] = 1; adj[j, i] = 1
         return adj
 
-    def run(self, data: Union[pd.DataFrame, np.ndarray], columns: Optional[list] = None) -> np.ndarray:
+    def run(self, data: Union[pd.DataFrame, np.ndarray], columns: Optional[list] = None, prior: Optional[dict] = None) -> np.ndarray:
         if isinstance(data, np.ndarray):
             if columns is None: raise ValueError("Column names must be provided when input is a numpy array.")
             df = pd.DataFrame(data, columns=columns)
@@ -94,21 +94,24 @@ class TetradPC:
         else:
             raise ValueError("Input data must be a pandas DataFrame or numpy array.")
         if df.empty: raise ValueError("Input data cannot be empty.")
+        
+        # Build knowledge object if prior knowledge provided
+        knowledge = None
+        if prior is not None:
+            try:
+                from utils.tetrad_prior_knowledge import build_tetrad_knowledge
+                knowledge = build_tetrad_knowledge(prior, columns)
+            except Exception as e:
+                print(f"[WARNING] Could not build knowledge for PC: {e}")
+        
         tetrad_data, cats, cont = self._convert(df)
         indep = self._indep(tetrad_data, cats, cont)
         alg = self.search.Pc(indep)
         if hasattr(alg, "setDepth"): alg.setDepth(self.depth)
         
-        # Apply prior knowledge if available
-        if self.use_prior_knowledge and self.prior_knowledge:
-            try:
-                from .utils.prior_knowledge import create_tetrad_prior_knowledge
-                prior = create_tetrad_prior_knowledge(self.prior_knowledge, columns)
-                if prior is not None:
-                    alg.setKnowledge(prior)
-            except Exception as e:
-                import logging
-                logging.warning(f"Could not apply prior knowledge to PC: {e}")
+        # Apply prior knowledge if provided
+        if knowledge is not None and hasattr(alg, "setKnowledge"):
+            alg.setKnowledge(knowledge)
         
         cpdag = alg.search()
         return self._graph_to_adjacency(cpdag, columns)
@@ -120,16 +123,13 @@ def run_pc(
     alpha: float = 0.01,
     depth: int = -1,
     include_undirected: bool = True,
-    use_prior_knowledge: bool = False,
-    prior_knowledge: Optional[Dict] = None,
+    prior: Optional[Dict] = None,
 ) -> np.ndarray:
     pc = TetradPC(
         alpha=alpha, 
         depth=depth, 
         include_undirected=include_undirected,
-        use_prior_knowledge=use_prior_knowledge,
-        prior_knowledge=prior_knowledge
     )
-    return pc.run(data, columns)
+    return pc.run(data, columns, prior=prior)
 
 
