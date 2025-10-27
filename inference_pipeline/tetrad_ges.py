@@ -115,7 +115,9 @@ class TetradGES:
         
         tetrad_data, cats, cont = self._convert(df)
         sc = self._score_fn(tetrad_data, cats, cont)
-        alg = self.search.Ges(sc)
+        # Use FGES as GES is not available in this Tetrad version
+        # FGES (Fast Greedy Equivalence Search) is an optimized version of GES
+        alg = self.search.Fges(sc)
         
         # Apply prior knowledge if provided
         if knowledge is not None and hasattr(alg, "setKnowledge"):

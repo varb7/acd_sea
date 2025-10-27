@@ -29,10 +29,9 @@ try:
     from tetrad_fci import TetradFCI
     from tetrad_cpc import TetradCPC
     from tetrad_cfci import TetradCFCI
-    from tetrad_ges import TetradGES
     from tetrad_pc import TetradPC
     TETRAD_AVAILABLE = True
-    print("[INFO] Tetrad algorithms (RFCI, FGES, GFCI, FCI, FCI-Max, CPC, CFCI, GES, PC) available")
+    print("[INFO] Tetrad algorithms (RFCI, FGES, GFCI, FCI, FCI-Max, CPC, CFCI, PC) available")
 except ImportError:
     TETRAD_AVAILABLE = False
     print("[WARNING] Tetrad algorithms not available - tetrad_* modules not found")
@@ -395,35 +394,6 @@ class AlgorithmRegistry:
             self.register_algorithm(TetradFCIMaxAlgorithm())
         except Exception as e:
             print(f"[WARNING] Could not register TetradFCIMax: {e}")
-
-        # Add GES algorithm
-        try:
-            class TetradGESAlgorithm(BaseAlgorithm):
-                def __init__(self, **kwargs):
-                    super().__init__("TetradGES", **kwargs)
-                    self.penalty_discount = kwargs.get('penalty_discount', 2.0)
-                    self.equivalent_sample_size = kwargs.get('equivalent_sample_size', 10.0)
-                def _preprocess(self, data: np.ndarray, columns: list):
-                    df = pd.DataFrame(data, columns=columns)
-                    return df, {'original_shape': data.shape, 'columns': columns}
-                def _run_algorithm(self, preprocessed_data: pd.DataFrame, metadata: Dict[str, Any]) -> np.ndarray:
-                    from tetrad_ges import TetradGES
-                    prior = None
-                    if self.use_prior_knowledge and self.prior_knowledge:
-                        prior = self.prior_knowledge
-                    alg = TetradGES(
-                        penalty_discount=self.penalty_discount,
-                        equivalent_sample_size=self.equivalent_sample_size
-                    )
-                    return alg.run(preprocessed_data, prior=prior)
-                def _postprocess(self, raw_output: np.ndarray, original_shape: Tuple[int, int], metadata: Dict[str, Any]) -> np.ndarray:
-                    if raw_output is None or np.any(np.isnan(raw_output)):
-                        return np.zeros((original_shape[1], original_shape[1]))
-                    out = (raw_output != 0).astype(int)
-                    return out if out.shape == (original_shape[1], original_shape[1]) else np.zeros((original_shape[1], original_shape[1]))
-            self.register_algorithm(TetradGESAlgorithm())
-        except Exception as e:
-            print(f"[WARNING] Could not register TetradGES: {e}")
 
         # Add PC algorithm
         try:
