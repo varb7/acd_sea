@@ -181,9 +181,13 @@ def generate_single_dataset(
         if dist_info['dist'] in ['categorical', 'categorical_non_uniform']
     ]
     
+    # Convert roots set to sorted list for metadata
+    root_node_names = sorted(list(roots))
+    
     metadata = {
         'num_nodes': num_nodes,
         'num_roots': num_roots,
+        'root_nodes': root_node_names,  # List of root node names
         'num_edges': num_edges,
         'num_samples': num_samples,
         'equation_type': equation_type,
