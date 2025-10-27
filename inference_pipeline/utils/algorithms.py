@@ -35,6 +35,17 @@ except ImportError:
     TETRAD_AVAILABLE = False
     print("[WARNING] Tetrad algorithms not available - tetrad_* modules not found")
 
+# FCI Variants (BOSS-FCI, GRaSP-FCI, SP-FCI)
+try:
+    from tetrad_boss_fci import TetradBossFCI
+    from tetrad_grasp_fci import TetradGraspFCI
+    from tetrad_sp_fci import TetradSpFCI
+    FCI_VARIANTS_AVAILABLE = True
+    print("[INFO] FCI variants (BOSS-FCI, GRaSP-FCI, SP-FCI) available")
+except ImportError as e:
+    FCI_VARIANTS_AVAILABLE = False
+    print(f"[INFO] FCI variants not available: {e}")
+
 # Optional external algorithms (BOSS, TXGES) removed - not used in current pipeline
 
 
@@ -383,6 +394,118 @@ class AlgorithmRegistry:
         except Exception as e:
             print(f"[WARNING] Could not register TetradFCIMax: {e}")
 
+        # Add FCI Variants (BOSS-FCI, GRaSP-FCI, SP-FCI)
+        if FCI_VARIANTS_AVAILABLE:
+            # BOSS-FCI
+            try:
+                class TetradBossFCIAlgorithm(BaseAlgorithm):
+                    def __init__(self, **kwargs):
+                        super().__init__("TetradBossFCI", **kwargs)
+                        self.alpha = kwargs.get('alpha', 0.05)
+                        self.depth = kwargs.get('depth', -1)
+                        self.penalty_discount = kwargs.get('penalty_discount', 2.0)
+                        self.num_starts = kwargs.get('num_starts', 1)
+                        self.use_bes = kwargs.get('use_bes', True)
+                    def _preprocess(self, data: np.ndarray, columns: list):
+                        df = pd.DataFrame(data, columns=columns)
+                        return df, {'original_shape': data.shape, 'columns': columns}
+                    def _run_algorithm(self, preprocessed_data: pd.DataFrame, metadata: Dict[str, Any]) -> np.ndarray:
+                        from tetrad_boss_fci import TetradBossFCI
+                        prior = None
+                        if self.use_prior_knowledge and self.prior_knowledge:
+                            prior = self.prior_knowledge
+                        alg = TetradBossFCI(
+                            alpha=self.alpha,
+                            depth=self.depth,
+                            penalty_discount=self.penalty_discount,
+                            num_starts=self.num_starts,
+                            use_bes=self.use_bes
+                        )
+                        return alg.run(preprocessed_data, prior=prior)
+                    def _postprocess(self, raw_output: np.ndarray, original_shape: Tuple[int, int], metadata: Dict[str, Any]) -> np.ndarray:
+                        if raw_output is None or np.any(np.isnan(raw_output)):
+                            return np.zeros((original_shape[1], original_shape[1]))
+                        out = (raw_output != 0).astype(int)
+                        return out if out.shape == (original_shape[1], original_shape[1]) else np.zeros((original_shape[1], original_shape[1]))
+                self.register_algorithm(TetradBossFCIAlgorithm())
+            except Exception as e:
+                print(f"[WARNING] Could not register TetradBossFCI: {e}")
+
+            # GRaSP-FCI
+            try:
+                class TetradGraspFCIAlgorithm(BaseAlgorithm):
+                    def __init__(self, **kwargs):
+                        super().__init__("TetradGraspFCI", **kwargs)
+                        self.alpha = kwargs.get('alpha', 0.05)
+                        self.depth = kwargs.get('depth', -1)
+                        self.penalty_discount = kwargs.get('penalty_discount', 2.0)
+                        self.num_starts = kwargs.get('num_starts', 1)
+                        self.use_raskutti_uhler = kwargs.get('use_raskutti_uhler', False)
+                        self.use_data_order = kwargs.get('use_data_order', True)
+                    def _preprocess(self, data: np.ndarray, columns: list):
+                        df = pd.DataFrame(data, columns=columns)
+                        return df, {'original_shape': data.shape, 'columns': columns}
+                    def _run_algorithm(self, preprocessed_data: pd.DataFrame, metadata: Dict[str, Any]) -> np.ndarray:
+                        from tetrad_grasp_fci import TetradGraspFCI
+                        prior = None
+                        if self.use_prior_knowledge and self.prior_knowledge:
+                            prior = self.prior_knowledge
+                        alg = TetradGraspFCI(
+                            alpha=self.alpha,
+                            depth=self.depth,
+                            penalty_discount=self.penalty_discount,
+                            num_starts=self.num_starts,
+                            use_raskutti_uhler=self.use_raskutti_uhler,
+                            use_data_order=self.use_data_order
+                        )
+                        return alg.run(preprocessed_data, prior=prior)
+                    def _postprocess(self, raw_output: np.ndarray, original_shape: Tuple[int, int], metadata: Dict[str, Any]) -> np.ndarray:
+                        if raw_output is None or np.any(np.isnan(raw_output)):
+                            return np.zeros((original_shape[1], original_shape[1]))
+                        out = (raw_output != 0).astype(int)
+                        return out if out.shape == (original_shape[1], original_shape[1]) else np.zeros((original_shape[1], original_shape[1]))
+                self.register_algorithm(TetradGraspFCIAlgorithm())
+            except Exception as e:
+                print(f"[WARNING] Could not register TetradGraspFCI: {e}")
+
+            # SP-FCI (with variable count check)
+            try:
+                class TetradSpFCIAlgorithm(BaseAlgorithm):
+                    def __init__(self, **kwargs):
+                        super().__init__("TetradSpFCI", **kwargs)
+                        self.alpha = kwargs.get('alpha', 0.05)
+                        self.depth = kwargs.get('depth', -1)
+                        self.penalty_discount = kwargs.get('penalty_discount', 2.0)
+                        self.max_degree = kwargs.get('max_degree', -1)
+                    def _preprocess(self, data: np.ndarray, columns: list):
+                        df = pd.DataFrame(data, columns=columns)
+                        return df, {'original_shape': data.shape, 'columns': columns}
+                    def _run_algorithm(self, preprocessed_data: pd.DataFrame, metadata: Dict[str, Any]) -> np.ndarray:
+                        # Check if number of variables exceeds 11
+                        num_vars = preprocessed_data.shape[1]
+                        if num_vars > 11:
+                            print(f"[WARNING] TetradSpFCI skipped: {num_vars} variables exceeds limit of 11")
+                            return np.zeros((num_vars, num_vars))
+                        
+                        from tetrad_sp_fci import TetradSpFCI
+                        prior = None
+                        if self.use_prior_knowledge and self.prior_knowledge:
+                            prior = self.prior_knowledge
+                        alg = TetradSpFCI(
+                            alpha=self.alpha,
+                            depth=self.depth,
+                            penalty_discount=self.penalty_discount,
+                            max_degree=self.max_degree
+                        )
+                        return alg.run(preprocessed_data, prior=prior)
+                    def _postprocess(self, raw_output: np.ndarray, original_shape: Tuple[int, int], metadata: Dict[str, Any]) -> np.ndarray:
+                        if raw_output is None or np.any(np.isnan(raw_output)):
+                            return np.zeros((original_shape[1], original_shape[1]))
+                        out = (raw_output != 0).astype(int)
+                        return out if out.shape == (original_shape[1], original_shape[1]) else np.zeros((original_shape[1], original_shape[1]))
+                self.register_algorithm(TetradSpFCIAlgorithm())
+            except Exception as e:
+                print(f"[WARNING] Could not register TetradSpFCI: {e}")
             
     def register_algorithm(self, algorithm: BaseAlgorithm):
         """Register a new algorithm"""
