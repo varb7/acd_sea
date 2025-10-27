@@ -1,5 +1,5 @@
 import pandas as pd
-from config import INPUT_DIR, OUTPUT_DIR
+from config import INPUT_DIR, OUTPUT_DIR, USE_PRIOR_KNOWLEDGE
 from utils.io_utils import load_datasets, save_results
 from utils.metrics_utils import compute_data_properties
 from utils.algorithms import AlgorithmRegistry, compute_metrics, default_metrics
@@ -160,6 +160,10 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
+    # Determine if prior knowledge should be used
+    # Priority: CLI flag > config file default
+    use_prior = args.use_prior_knowledge or USE_PRIOR_KNOWLEDGE
+    
     # Update global variables if specified
     if args.input_dir != INPUT_DIR:
         import sys
@@ -168,4 +172,5 @@ if __name__ == "__main__":
         import sys
         sys.modules['config'].OUTPUT_DIR = args.output_dir
     
-    main(use_prior_knowledge=args.use_prior_knowledge, algorithms=args.algorithms)
+    print(f"Prior knowledge: {'ENABLED' if use_prior else 'DISABLED'}")
+    main(use_prior_knowledge=use_prior, algorithms=args.algorithms)

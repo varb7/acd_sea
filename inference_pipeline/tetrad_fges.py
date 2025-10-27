@@ -133,10 +133,15 @@ class TetradFGES:
             self.last_score_type = "SemBicScore (continuous)"
         return sc
 
-    def _run_fges(self, score_function):
+    def _run_fges(self, score_function, knowledge=None):
         fges = self.search.Fges(score_function)
         if self.max_degree is not None and self.max_degree >= 0:
             fges.setMaxDegree(self.max_degree)
+        
+        # Apply prior knowledge if provided
+        if knowledge is not None:
+            fges.setKnowledge(knowledge)
+        
         # Try to enable parallelism if supported by this Tetrad build
         if self.parallel:
             for meth in ("setNumThreads", "setParallelism", "setUseParallel"):
@@ -179,7 +184,8 @@ class TetradFGES:
 
     # ---------------- Public API ----------------
 
-    def run(self, data: Union[pd.DataFrame, np.ndarray], columns: Optional[list] = None) -> np.ndarray:
+    def run(self, data: Union[pd.DataFrame, np.ndarray], columns: Optional[list] = None, 
+            prior: Optional[Dict[str, Any]] = None) -> np.ndarray:
         """Run FGES and return a directed adjacency matrix (parents → children)."""
         if isinstance(data, np.ndarray):
             if columns is None:
@@ -192,9 +198,18 @@ class TetradFGES:
         if df.empty:
             raise ValueError("Input data cannot be empty.")
 
+        # Build knowledge object if prior knowledge provided
+        knowledge = None
+        if prior is not None:
+            try:
+                from utils.tetrad_prior_knowledge import build_tetrad_knowledge
+                knowledge = build_tetrad_knowledge(prior, columns)
+            except Exception as e:
+                print(f"[WARNING] Could not build knowledge for FGES: {e}")
+
         tetrad_data, cats, cont = self._convert_to_tetrad_format(df)
         sc = self._create_score_function(tetrad_data, cats, cont)
-        graph_out = self._run_fges(sc)
+        graph_out = self._run_fges(sc, knowledge)
         # FGES typically returns a CPDAG; optionally orient to a DAG
         if self.orient_cpdag_to_dag:
             try:

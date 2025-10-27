@@ -91,10 +91,12 @@ class TetradFCIMax:
         else:
             return self.test.IndTestFisherZ(tetrad_data, self.alpha)
 
-    def _run_fci_max(self, indep_test):
+    def _run_fci_max(self, indep_test, knowledge=None):
         alg = self.search.FciMax(indep_test)
         if hasattr(alg, "setDepth"):
             alg.setDepth(self.depth)
+        if knowledge is not None:
+            alg.setKnowledge(knowledge)
         return alg.search()
 
     # ---------------- PAG → adjacency ----------------
@@ -126,7 +128,8 @@ class TetradFCIMax:
         return adj
 
     # ---------------- Public API ----------------
-    def run(self, data: Union[pd.DataFrame, np.ndarray], columns: Optional[list] = None) -> np.ndarray:
+    def run(self, data: Union[pd.DataFrame, np.ndarray], columns: Optional[list] = None,
+            prior: Optional[dict] = None) -> np.ndarray:
         if isinstance(data, np.ndarray):
             if columns is None:
                 raise ValueError("Column names must be provided when input is a numpy array.")
@@ -138,9 +141,18 @@ class TetradFCIMax:
         if df.empty:
             raise ValueError("Input data cannot be empty.")
 
+        # Build knowledge object if prior knowledge provided
+        knowledge = None
+        if prior is not None:
+            try:
+                from utils.tetrad_prior_knowledge import build_tetrad_knowledge
+                knowledge = build_tetrad_knowledge(prior, columns)
+            except Exception as e:
+                print(f"[WARNING] Could not build knowledge for FCI-Max: {e}")
+
         tetrad_data, cats, cont = self._convert_to_tetrad_format(df)
         indep = self._create_independence_test(tetrad_data, cats, cont)
-        pag = self._run_fci_max(indep)
+        pag = self._run_fci_max(indep, knowledge)
         return self._pag_to_adjacency_matrix(pag, columns)
 
 
@@ -150,8 +162,9 @@ def run_fci_max(
     alpha: float = 0.01,
     depth: int = -1,
     include_undirected: bool = True,
+    prior: Optional[dict] = None,
 ) -> np.ndarray:
     fci_m = TetradFCIMax(alpha=alpha, depth=depth, include_undirected=include_undirected)
-    return fci_m.run(data, columns)
+    return fci_m.run(data, columns, prior=prior)
 
 

@@ -27,7 +27,7 @@ def load_config(config_path: str = None) -> Dict[str, Any]:
         'num_datasets': 5,
         'output_dir': 'causal_meta_dataset',
         'seed': 42,
-        'nodes_range': [30, 40],
+        'nodes_range': [5, 10],
         'root_percentage_range': [0.10, 0.30],
         'edge_density_range': [0.70, 0.80],
         'samples_range': [1000, 50000],

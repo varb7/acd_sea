@@ -93,6 +93,35 @@ class PriorKnowledgeFormatter:
         logger.debug(f"Extracted {len(self.root_nodes)} root node constraints")
         return self.root_nodes
     
+    def extract_root_forbidden_edges(self) -> List[Tuple[str, str]]:
+        """
+        Extract forbidden edges involving root nodes:
+        1. No incoming edges to root nodes
+        2. No edges between root nodes
+        
+        Returns:
+            List of (source, target) tuples representing forbidden edges
+        """
+        if not self.root_nodes:
+            return []
+        
+        forbidden_edges = []
+        all_nodes = self.temporal_order if self.temporal_order else []
+        
+        for root in self.root_nodes:
+            # Forbid all incoming edges to root nodes
+            for node in all_nodes:
+                if node != root:
+                    forbidden_edges.append((node, root))
+            
+            # Forbid edges between root nodes
+            for other_root in self.root_nodes:
+                if other_root != root:
+                    forbidden_edges.append((other_root, root))
+        
+        logger.debug(f"Extracted {len(forbidden_edges)} root node forbidden edges")
+        return forbidden_edges
+    
     def get_forbidden_edges(self) -> List[Tuple[str, str]]:
         """
         Get all forbidden edges based on temporal and station constraints.
@@ -104,6 +133,9 @@ class PriorKnowledgeFormatter:
         
         # Add station-based constraints (later stations cannot cause earlier stations)
         forbidden_edges.extend(self.extract_station_constraints())
+        
+        # Add root node constraints (no incoming edges to roots, no edges between roots)
+        forbidden_edges.extend(self.extract_root_forbidden_edges())
         
         # Note: We don't add temporal constraints as forbidden edges because
         # temporal order doesn't necessarily imply causal order
@@ -174,14 +206,14 @@ def create_tetrad_prior_knowledge(prior_knowledge: Dict, node_names: List[str]) 
     """
     try:
         import jpype
-        import edu.cmu.tetrad.graph as graph
+        import edu.cmu.tetrad.data as data
         
         if not jpype.isJVMStarted():
             logger.warning("JVM not started, cannot create Tetrad PriorKnowledge")
             return None
         
         # Create PriorKnowledge object
-        prior = graph.PriorKnowledge()
+        prior = data.Knowledge()
         
         # Add forbidden edges
         for source, target in prior_knowledge.get('forbidden_edges', []):
@@ -199,7 +231,7 @@ def create_tetrad_prior_knowledge(prior_knowledge: Dict, node_names: List[str]) 
             for i, tier in enumerate(tier_ordering):
                 for node in tier:
                     if node in node_names:
-                        prior.setTierForbidden(node, i)
+                        prior.addToTier(i, node)
         
         logger.debug(f"Created Tetrad PriorKnowledge with {len(prior_knowledge.get('forbidden_edges', []))} "
                     f"forbidden edges and {len(tier_ordering)} tiers")
@@ -284,8 +316,20 @@ def log_prior_knowledge_summary(prior_knowledge: Dict, dataset_name: str = "data
     logger.info(f"  Tier ordering: {len(prior_knowledge.get('tier_ordering', []))} tiers")
     logger.info(f"  Root nodes: {len(prior_knowledge.get('root_nodes', []))}")
     
-    if prior_knowledge.get('forbidden_edges'):
-        logger.debug(f"  Forbidden edges: {prior_knowledge['forbidden_edges'][:5]}...")
+    # Detailed breakdown
+    forbidden_edges = prior_knowledge.get('forbidden_edges', [])
+    root_nodes = prior_knowledge.get('root_nodes', [])
+    station_blocks = prior_knowledge.get('station_blocks', [])
+    
+    # Count edges involving root nodes
+    root_forbidden_count = sum(1 for edge in forbidden_edges if edge[1] in root_nodes or edge[0] in root_nodes)
+    
+    logger.info(f"  - Root node forbidden edges: {root_forbidden_count}")
+    logger.info(f"  - Station-based forbidden edges: {len(prior_knowledge.get('forbidden_edges', [])) - root_forbidden_count}")
+    logger.info(f"  - Number of stations: {len(station_blocks)}")
+    
+    if forbidden_edges:
+        logger.debug(f"  Sample forbidden edges: {forbidden_edges[:5]}...")
     
     if prior_knowledge.get('tier_ordering'):
-        logger.debug(f"  Tier structure: {[len(tier) for tier in prior_knowledge['tier_ordering']]}")
+        logger.debug(f"  Tier structure: {[len(tier) for tier in prior_knowledge.get('tier_ordering', [])]}")

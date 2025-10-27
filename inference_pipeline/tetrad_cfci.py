@@ -85,7 +85,8 @@ class TetradCFCI:
                     adj[i, j] = 1; adj[j, i] = 1
         return adj
 
-    def run(self, data: Union[pd.DataFrame, np.ndarray], columns: Optional[list] = None) -> np.ndarray:
+    def run(self, data: Union[pd.DataFrame, np.ndarray], columns: Optional[list] = None,
+            prior: Optional[dict] = None) -> np.ndarray:
         if isinstance(data, np.ndarray):
             if columns is None: raise ValueError("Column names must be provided when input is a numpy array.")
             df = pd.DataFrame(data, columns=columns)
@@ -94,10 +95,21 @@ class TetradCFCI:
         else:
             raise ValueError("Input data must be a pandas DataFrame or numpy array.")
         if df.empty: raise ValueError("Input data cannot be empty.")
+        
+        # Build knowledge object if prior knowledge provided
+        knowledge = None
+        if prior is not None:
+            try:
+                from utils.tetrad_prior_knowledge import build_tetrad_knowledge
+                knowledge = build_tetrad_knowledge(prior, columns)
+            except Exception as e:
+                print(f"[WARNING] Could not build knowledge for CFCI: {e}")
+        
         tetrad_data, cats, cont = self._convert(df)
         indep = self._indep(tetrad_data, cats, cont)
         alg = self.search.Cfci(indep)
         if hasattr(alg, "setDepth"): alg.setDepth(self.depth)
+        if knowledge is not None: alg.setKnowledge(knowledge)
         pag = alg.search()
         return self._pag_to_adjacency(pag, columns)
 
@@ -108,8 +120,9 @@ def run_cfci(
     alpha: float = 0.01,
     depth: int = -1,
     include_undirected: bool = True,
+    prior: Optional[dict] = None,
 ) -> np.ndarray:
     cfci = TetradCFCI(alpha=alpha, depth=depth, include_undirected=include_undirected)
-    return cfci.run(data, columns)
+    return cfci.run(data, columns, prior=prior)
 
 

@@ -11,15 +11,17 @@ import pkg_resources
 import pickle
 import yaml
 from numpy.random import default_rng
+
 try:
     from scipy.stats import truncnorm
+
     SCIPY_AVAILABLE = True
 except ImportError:
     SCIPY_AVAILABLE = False
     print("Warning: scipy not available. truncated_normal distribution will not work.")
 
 from causalAssembly.models_dag import ProductionLineGraph
-import numpy as np   # SymPy / FCM imports come later if you need them
+import numpy as np  # SymPy / FCM imports come later if you need them
 
 
 def softmax_fn(logits):
@@ -27,34 +29,148 @@ def softmax_fn(logits):
     return e_logits / np.sum(e_logits, axis=1, keepdims=True)
 
 
-def generate_nominal_category(X, num_classes=3, seed=42):
+def generate_nominal_category(X, num_classes=3, seed=42, input_names=None):
+    """
+    Generate categorical variables from continuous inputs.
+    
+    Args:
+        X: Single input array OR dict of multiple inputs
+        num_classes: Number of categories to generate
+        seed: Random seed
+        input_names: Names of input variables (for multi-input case)
+    
+    Returns:
+        y: Categorical values
+        logits: Generated logits
+        probs: Probability distributions
+    """
     rng = np.random.default_rng(seed)
-    X = X.reshape(-1, 1)
-    n = X.shape[0]
+    
+    # Handle both single input and multi-input cases
+    if isinstance(X, dict):
+        # Multi-input case
+        input_names = list(X.keys())
+        n = len(X[input_names[0]])
+        num_inputs = len(input_names)
+        
+        # Stack all inputs into a matrix
+        X_matrix = np.column_stack([X[name] for name in input_names])
+    else:
+        # Single input case (backward compatibility)
+        X = X.reshape(-1, 1)
+        n = X.shape[0]
+        num_inputs = 1
+        X_matrix = X
+        input_names = ['input'] if input_names is None else input_names
 
     logits = np.zeros((n, num_classes))
-    func_types = rng.choice(['linear', 'poly', 'sin', 'exp', 'log', 'sqrt'], size=num_classes)
+    func_types = rng.choice(['linear', 'poly', 'sin', 'exp', 'log', 'sqrt', 'interaction'], size=num_classes)
 
     for k in range(num_classes):
-        a = rng.uniform(-3, 3)
-        b = rng.uniform(-2, 2)
+        # Create a new RNG for each class to ensure different random values
+        class_rng = np.random.default_rng(seed + k)
         if func_types[k] == 'linear':
-            logits[:, k] = a * X[:, 0] + b
+            if num_inputs == 1:
+                a = class_rng.uniform(-3, 3)
+                b = class_rng.uniform(-2, 2)
+                logits[:, k] = a * X_matrix[:, 0] + b
+            else:
+                # Multi-input linear: weighted sum (scaled for reasonable logits)
+                weights = class_rng.uniform(-0.01, 0.01, num_inputs)  # Much smaller weights
+                bias = class_rng.uniform(-2, 2)
+                logits[:, k] = np.sum(X_matrix * weights, axis=1) + bias
+                
         elif func_types[k] == 'poly':
-            c = rng.uniform(-1, 1)
-            logits[:, k] = a * X[:, 0] ** 2 + b * X[:, 0] + c
+            if num_inputs == 1:
+                a = class_rng.uniform(-3, 3)
+                b = class_rng.uniform(-2, 2)
+                c = class_rng.uniform(-1, 1)
+                logits[:, k] = a * X_matrix[:, 0] ** 2 + b * X_matrix[:, 0] + c
+            else:
+                # Multi-input polynomial: quadratic terms + interactions (scaled)
+                weights = class_rng.uniform(-0.0001, 0.0001, num_inputs)  # Much smaller weights
+                interaction_weight = class_rng.uniform(-0.0001, 0.0001)  # Much smaller interaction
+                bias = class_rng.uniform(-1, 1)
+                
+                # Quadratic terms
+                quad_terms = np.sum(X_matrix ** 2 * weights, axis=1)
+                # Interaction terms (pairwise products)
+                interaction_terms = 0
+                for i in range(num_inputs):
+                    for j in range(i+1, num_inputs):
+                        interaction_terms += X_matrix[:, i] * X_matrix[:, j]
+                
+                logits[:, k] = quad_terms + interaction_weight * interaction_terms + bias
+                
         elif func_types[k] == 'sin':
-            logits[:, k] = np.sin(a * X[:, 0] + b)
+            if num_inputs == 1:
+                a = class_rng.uniform(-3, 3)
+                b = class_rng.uniform(-2, 2)
+                logits[:, k] = np.sin(a * X_matrix[:, 0] + b)
+            else:
+                # Multi-input sin: weighted combination (scaled)
+                weights = class_rng.uniform(-0.01, 0.01, num_inputs)  # Much smaller weights
+                bias = class_rng.uniform(-2, 2)
+                combined_input = np.sum(X_matrix * weights, axis=1) + bias
+                logits[:, k] = np.sin(combined_input)
+                
         elif func_types[k] == 'exp':
-            logits[:, k] = np.exp(np.clip(a * X[:, 0] + b, -10, 10))
+            if num_inputs == 1:
+                a = class_rng.uniform(-3, 3)
+                b = class_rng.uniform(-2, 2)
+                logits[:, k] = np.exp(np.clip(a * X_matrix[:, 0] + b, -10, 10))
+            else:
+                # Multi-input exp: weighted combination (scaled)
+                weights = class_rng.uniform(-0.01, 0.01, num_inputs)  # Much smaller weights
+                bias = class_rng.uniform(-2, 2)
+                combined_input = np.sum(X_matrix * weights, axis=1) + bias
+                logits[:, k] = np.exp(np.clip(combined_input, -10, 10))
+                
         elif func_types[k] == 'log':
-            logits[:, k] = np.log(np.abs(a * X[:, 0]) + 1)
+            if num_inputs == 1:
+                a = class_rng.uniform(-3, 3)
+                logits[:, k] = np.log(np.abs(a * X_matrix[:, 0]) + 1)
+            else:
+                # Multi-input log: weighted combination (scaled)
+                weights = class_rng.uniform(-0.01, 0.01, num_inputs)  # Much smaller weights
+                combined_input = np.abs(np.sum(X_matrix * weights, axis=1)) + 1
+                logits[:, k] = np.log(combined_input)
+                
         elif func_types[k] == 'sqrt':
-            logits[:, k] = np.sqrt(np.abs(a * X[:, 0]) + 1)
+            if num_inputs == 1:
+                a = class_rng.uniform(-3, 3)
+                logits[:, k] = np.sqrt(np.abs(a * X_matrix[:, 0]) + 1)
+            else:
+                # Multi-input sqrt: weighted combination (scaled)
+                weights = class_rng.uniform(-0.01, 0.01, num_inputs)  # Much smaller weights
+                combined_input = np.abs(np.sum(X_matrix * weights, axis=1)) + 1
+                logits[:, k] = np.sqrt(combined_input)
+                
+        elif func_types[k] == 'interaction':
+            # Special case for multi-input: create interaction effects
+            if num_inputs == 1:
+                # Fallback to linear for single input
+                a = class_rng.uniform(-3, 3)
+                b = class_rng.uniform(-2, 2)
+                logits[:, k] = a * X_matrix[:, 0] + b
+            else:
+                # Create meaningful interactions (scaled)
+                main_weights = class_rng.uniform(-0.01, 0.01, num_inputs)  # Much smaller weights
+                interaction_weight = class_rng.uniform(-0.0001, 0.0001)  # Much smaller interaction
+                bias = class_rng.uniform(-1, 1)
+                
+                # Main effects
+                main_effects = np.sum(X_matrix * main_weights, axis=1)
+                
+                # Interaction effects (product of all inputs)
+                interaction_effect = np.prod(X_matrix, axis=1) * interaction_weight
+                
+                logits[:, k] = main_effects + interaction_effect + bias
 
     probs = softmax_fn(logits)
     y = np.array([rng.choice(num_classes, p=probs[i]) for i in range(n)])
     return y, probs, func_types
+
 
 # If you have this utility function from your original code:
 # from scdg.utils import get_generation_type
@@ -127,11 +243,11 @@ class CausalDataGenerator:
                                node_noise_override=None,
                                overall_root_distribution_type=None,
                                add_noise_to_root_nodes=False,
-                               categorical_nodes = None,  # explicit mapping  {"d": {"input": "a", "num_classes": 4}, ...}
-                               categorical_percentage = 0.0,  # fraction of *non-root* nodes to flip to nominal
-                               max_categories = 6,  # upper bound when we sample num_classes ∈ [2, max_categories]
-                               categorical_root_nodes = None # list like ["b", "c"]  → root nodes made categorical
-    ):
+                               categorical_nodes=None,  # explicit mapping  {"d": {"input": "a", "num_classes": 4}, ...}
+                               categorical_percentage=0.0,  # fraction of *non-root* nodes to flip to nominal
+                               max_categories=6,  # upper bound when we sample num_classes ∈ [2, max_categories]
+                               categorical_root_nodes=None  # list like ["b", "c"]  → root nodes made categorical
+                               ):
         """
         High-level method to generate data with a single call.
 
@@ -350,7 +466,8 @@ class CausalDataGenerator:
                     params = ', '.join(f"{k}={v:.2f}" for k, v in dist_info.items() if k != 'dist')
                     label += f"\n{dist_type}({params})"
             else:
-                noise_info = self.node_noise_info.get(node, {'type': self.default_noise_type, 'params': self.default_noise_params})
+                noise_info = self.node_noise_info.get(node, {'type': self.default_noise_type,
+                                                             'params': self.default_noise_params})
                 noise_type = noise_info['type']
                 noise_params = noise_info['params']
                 params = ', '.join(f"{k}={v}" for k, v in noise_params.items())
@@ -617,9 +734,10 @@ class CausalDataGenerator:
 
         Parameters:
         - nominal_node_info (dict): e.g., {'d': {'input': 'a', 'num_classes': 3}}
+                                 or {'d': {'input': ['a', 'b'], 'num_classes': 3}}
 
         Each entry specifies:
-            - 'input': parent node to base logits on (must be one of the node's parents)
+            - 'input': parent node(s) to base logits on (single string or list of strings)
             - 'num_classes': number of nominal classes to generate
         """
         for node, info in nominal_node_info.items():
@@ -627,9 +745,12 @@ class CausalDataGenerator:
                 raise ValueError(f"Nominal node '{node}' cannot be a root node.")
             if 'input' not in info or 'num_classes' not in info:
                 raise ValueError(f"Each nominal node must specify 'input' and 'num_classes'.")
+            
+            # Convert single input to list for consistency
+            if isinstance(info['input'], str):
+                info['input'] = [info['input']]
+            
             self.nominal_nodes[node] = info
-
-
 
     # -------------------- INTERNAL HELPER METHODS --------------------
 
@@ -665,7 +786,8 @@ class CausalDataGenerator:
         remaining_edges -= min(remaining_edges, len(available_root_to_non_root_edges))
 
         if remaining_edges > 0:
-            available_non_root_to_non_root_edges = [(n1, n2) for i, n1 in enumerate(non_roots) for n2 in non_roots[i+1:] if (n1, n2) not in G.edges]
+            available_non_root_to_non_root_edges = [(n1, n2) for i, n1 in enumerate(non_roots) for n2 in
+                                                    non_roots[i + 1:] if (n1, n2) not in G.edges]
             self.rng.shuffle(available_non_root_to_non_root_edges)
             for edge in available_non_root_to_non_root_edges[:remaining_edges]:
                 G.add_edge(*edge)
@@ -687,7 +809,8 @@ class CausalDataGenerator:
 
     def _assign_random_distributions_to_root_nodes(self, root_nodes):
         # Assign random distributions (original logic)
-        distribution_types = ['uniform', 'normal', 'exponential', 'beta', 'truncated_normal', 'lognormal', 'categorical', 'categorical_non_uniform']
+        distribution_types = ['uniform', 'normal', 'exponential', 'beta', 'truncated_normal', 'lognormal',
+                              'categorical', 'categorical_non_uniform']
         root_ranges = {}
 
         for node in root_nodes:
@@ -697,8 +820,8 @@ class CausalDataGenerator:
                 high = self.rng.uniform(low, low + 10)
                 root_ranges[node] = {'dist': 'uniform', 'low': low, 'high': high}
             elif dist_type == 'normal':
-                mean = self.rng.uniform(0, 10)
-                std = self.rng.uniform(0.1, 5.0)
+                mean = self.rng.uniform(0, 5)      # Reduce from [0,10] to [0,5]
+                std = self.rng.uniform(0.1, 2.0)   # Reduce from [0.1,5.0] to [0.1,2.0]
                 root_ranges[node] = {'dist': 'normal', 'mean': mean, 'std': std}
             elif dist_type == 'exponential':
                 scale = self.rng.uniform(1, 10)
@@ -726,7 +849,7 @@ class CausalDataGenerator:
                 skew_factor = self.rng.uniform(0.1, 0.9)
                 probabilities = self._generate_skewed_probabilities(num_classes, skew_factor)
                 root_ranges[node] = {
-                    'dist': 'categorical_non_uniform', 
+                    'dist': 'categorical_non_uniform',
                     'num_classes': num_classes,
                     'probabilities': probabilities
                 }
@@ -756,11 +879,15 @@ class CausalDataGenerator:
                 multi_parent_equations.update(eq)
 
         elif equation_type == 'linear':
-            single_parent_equations = self._assign_random_equations_to_single_parent_nodes(single_parent_nodes, non_linear=False)
-            multi_parent_equations = self._assign_random_equations_to_multiparent_nodes(multi_parent_nodes, non_linear=False)
+            single_parent_equations = self._assign_random_equations_to_single_parent_nodes(single_parent_nodes,
+                                                                                           non_linear=False)
+            multi_parent_equations = self._assign_random_equations_to_multiparent_nodes(multi_parent_nodes,
+                                                                                        non_linear=False)
         elif equation_type == 'non_linear':
-            single_parent_equations = self._assign_random_equations_to_single_parent_nodes(single_parent_nodes, non_linear=True)
-            multi_parent_equations = self._assign_random_equations_to_multiparent_nodes(multi_parent_nodes, non_linear=True)
+            single_parent_equations = self._assign_random_equations_to_single_parent_nodes(single_parent_nodes,
+                                                                                           non_linear=True)
+            multi_parent_equations = self._assign_random_equations_to_multiparent_nodes(multi_parent_nodes,
+                                                                                        non_linear=True)
         else:
             raise ValueError("equation_type must be 'random', 'linear', or 'non_linear'")
 
@@ -782,10 +909,10 @@ class CausalDataGenerator:
         possible_functions_non_linear = [
             "np.sin({coeff} * {0}) + {const}",
             "np.cos({coeff} * {0}) + {const}",
-            "np.exp({coeff} * {0}) + {const}",
+            "np.exp(np.clip({coeff} * {0}, -5, 5)) + {const}",  # Add clipping
             "np.log(np.abs({coeff} * {0}) + 1) + {const}",
             "np.sqrt(np.abs({coeff} * {0})) + {const}",
-            "np.tan({coeff} * {0}) + {const}",
+            "np.sin({coeff} * {0}) + {const}",  # Replace tan with sin
         ]
 
         node_functions = {}
@@ -795,11 +922,11 @@ class CausalDataGenerator:
             else:
                 possible_functions = possible_functions_linear
             function_template = self.rng.choice(possible_functions)
-            coeff = round(self.rng.uniform(-5, 5), 2)
+            coeff = round(self.rng.uniform(-2, 2), 2)
             while coeff == 0:
-                coeff = round(self.rng.uniform(-5, 5), 2)
-            const = round(self.rng.uniform(-10, 10), 2)
-            power = round(self.rng.uniform(1.5, 3), 2)
+                coeff = round(self.rng.uniform(-2, 2), 2)
+            const = round(self.rng.uniform(-5, 5), 2)
+            power = round(self.rng.uniform(1.0, 2.0), 2)
             expression = function_template.format(parent, coeff=coeff, const=const, power=power)
             node_functions[(parent,), child] = expression
         return node_functions
@@ -812,11 +939,11 @@ class CausalDataGenerator:
                 raise ValueError(f"Node {child} has fewer than two parents.")
             terms = []
             for parent in parents:
-                coeff = round(self.rng.uniform(-5, 5), 2)
+                coeff = round(self.rng.uniform(-2, 2), 2)
                 while coeff == 0:
-                    coeff = round(self.rng.uniform(-5, 5), 2)
-                const = round(self.rng.uniform(-10, 10), 2)
-                power = round(self.rng.uniform(1.5, 3), 2)
+                    coeff = round(self.rng.uniform(-2, 2), 2)
+                const = round(self.rng.uniform(-5, 5), 2)
+                power = round(self.rng.uniform(1.0, 2.0), 2)
                 if non_linear:
                     function_template = self.rng.choice([
                         "{coeff} * np.abs({parent}) ** {power}",
@@ -833,7 +960,7 @@ class CausalDataGenerator:
             for term in terms[1:]:
                 op = self.rng.choice([' + ', ' - '])
                 expression = f"({expression}){op}({term})"
-            const = round(self.rng.uniform(-10, 10), 2)
+            const = round(self.rng.uniform(-5, 5), 2)
             expression = f"({expression}) + {const}"
             node_functions[tuple(parents), child] = expression
         return node_functions
@@ -855,25 +982,43 @@ class CausalDataGenerator:
 
         def func(**kwargs):
             try:
-                local_scope = {var: kwargs[var] for var in variables}
+                # Clip input values to prevent extreme computations
+                clipped_kwargs = {}
+                for var in variables:
+                    clipped_kwargs[var] = np.clip(kwargs[var], -10, 10)
+
+                local_scope = {var: clipped_kwargs[var] for var in variables}
+
                 with np.errstate(all='raise'):
                     result = eval(expr, {"__builtins__": None}, {**allowed_locals, **local_scope})
 
+                # Clip result to prevent extreme values
+                result = np.clip(result, -1e6, 1e6)
+
+                # Check for NaN/Inf and handle gracefully
+                if np.isnan(result).any() or np.isinf(result).any():
+                    print(f"Warning: NaN/Inf detected in node '{node_name}' with expression '{expr}'")
+                    # Replace NaN/Inf with bounded random values
+                    nan_mask = np.isnan(result) | np.isinf(result)
+                    result[nan_mask] = self.rng.uniform(-5, 5, size=np.sum(nan_mask))
+
+                # Add noise
                 noise_info = self.node_noise_info.get(node_name, {'type': self.default_noise_type,
-                                                                  'params': self.default_noise_params})
+                                                          'params': self.default_noise_params})
                 noise_type = noise_info['type']
                 noise_params = noise_info['params']
+
                 if noise_type == 'normal':
                     noise = self.rng.normal(loc=noise_params.get('mean', 0),
-                                            scale=noise_params.get('std', 1),
-                                            size=self.num_samples)
+                                    scale=noise_params.get('std', 1),
+                                    size=self.num_samples)
                 elif noise_type == 'uniform':
                     noise = self.rng.uniform(low=noise_params.get('low', -1),
-                                             high=noise_params.get('high', 1),
-                                             size=self.num_samples)
+                                     high=noise_params.get('high', 1),
+                                     size=self.num_samples)
                 elif noise_type == 'exponential':
                     noise = self.rng.exponential(scale=noise_params.get('scale', 1),
-                                                 size=self.num_samples)
+                                         size=self.num_samples)
                 elif noise_type == 'beta':
                     a = noise_params.get('a', 0.5)
                     b = noise_params.get('b', 0.5)
@@ -882,16 +1027,18 @@ class CausalDataGenerator:
                     raise ValueError(f"Unsupported noise type: {noise_type}")
 
                 combined = result + noise
-                if np.isnan(combined).any() or np.isinf(combined).any():
-                    print("Warning: NaN or Inf in computed values. Consider adjusting function ranges or distributions.")
+
+                # Final bounds check
+                combined = np.clip(combined, -1e6, 1e6)
 
                 return combined
+
             except FloatingPointError as e:
                 print(f"Floating point error in '{expr}': {e}")
-                return np.nan * np.ones(self.num_samples)
+                return self.rng.uniform(-5, 5, size=self.num_samples)  # Return bounded random values
             except Exception as e:
                 print(f"Error evaluating '{expr}' with variables {variables}: {e}")
-                return np.nan * np.ones(self.num_samples)
+                return self.rng.uniform(-5, 5, size=self.num_samples)  # Return bounded random values
 
         return func
 
@@ -910,19 +1057,19 @@ class CausalDataGenerator:
             elif range_info["dist"] == "truncated_normal":
                 if not SCIPY_AVAILABLE:
                     raise ImportError("scipy is required for truncated_normal distribution. Please install scipy.")
-                
+
                 # Use scipy.stats.truncnorm for truncated normal distribution
                 a = (range_info["low"] - range_info["mean"]) / range_info["std"]
                 b = (range_info["high"] - range_info["mean"]) / range_info["std"]
-                
+
                 # Validate parameters
                 if range_info["std"] <= 0:
                     raise ValueError(f"Standard deviation must be positive for truncated_normal distribution")
                 if range_info["low"] >= range_info["high"]:
                     raise ValueError(f"Low bound must be less than high bound for truncated_normal distribution")
-                
-                data[node] = truncnorm.rvs(a, b, loc=range_info["mean"], scale=range_info["std"], 
-                                         size=self.num_samples, random_state=self.rng)
+
+                data[node] = truncnorm.rvs(a, b, loc=range_info["mean"], scale=range_info["std"],
+                                           size=self.num_samples, random_state=self.rng)
             elif range_info["dist"] == "lognormal":
                 data[node] = self.rng.lognormal(range_info["mean"], range_info["sigma"], self.num_samples)
             elif range_info["dist"] == "categorical":  # Uniform categorical
@@ -972,10 +1119,19 @@ class CausalDataGenerator:
         functions = {}
         for (parents, child) in node_functions:
             expr = node_functions[(parents, child)]
-            # Validate variables
-            expr_vars = set(re.findall(r'\b[a-zA-Z_]\w*\b', expr))
-            allowable_functions = {'np', 'sin', 'cos', 'tan', 'exp', 'log', 'sqrt', 'math_e', 'pi', 'abs', 'log1p'}
-            expr_vars -= allowable_functions
+            # Validate variables - improved extraction for complex expressions
+            allowable_functions = {'np', 'sin', 'cos', 'tan', 'exp', 'log', 'sqrt', 'math_e', 'pi', 'abs', 'log1p', 'clip', 'select', 'where'}
+            parameter_names = {'default'}  # Add parameter names to exclude
+            expr_vars = set()
+            # Extract variables more carefully, handling np.select and np.where
+            import re
+            # Find all variable names that are not function names or parameters
+            var_pattern = r'\b([a-zA-Z_][a-zA-Z0-9_]*)\b'
+            all_matches = re.findall(var_pattern, expr)
+            
+            for match in all_matches:
+                if match not in allowable_functions and match not in parameter_names:
+                    expr_vars.add(match)
             if set(parents) - expr_vars:
                 raise ValueError(f"Expression '{expr}' for '{child}' does not use all parent variables.")
             if expr_vars - set(parents):
@@ -988,10 +1144,19 @@ class CausalDataGenerator:
                 if node in self.nominal_nodes:
                     # Nominal node – use generate_nominal_category
                     info = self.nominal_nodes[node]
-                    input_node = info['input']
+                    input_nodes = info['input']  # Now a list
                     num_classes = info['num_classes']
-                    X = data[input_node]
-                    y, _, _ = generate_nominal_category(X, num_classes=num_classes, seed=self.seed)
+                    
+                    # Handle both single and multiple inputs
+                    if len(input_nodes) == 1:
+                        # Single input (backward compatibility)
+                        X = data[input_nodes[0]]
+                        y, _, _ = generate_nominal_category(X, num_classes=num_classes, seed=self.seed)
+                    else:
+                        # Multiple inputs
+                        X_dict = {input_node: data[input_node] for input_node in input_nodes}
+                        y, _, _ = generate_nominal_category(X_dict, num_classes=num_classes, seed=self.seed)
+                    
                     data[node] = y
                 else:
                     args = {u: data[u] for u in G.predecessors(node)}
@@ -1007,7 +1172,8 @@ class CausalDataGenerator:
         Parameters:
         - distribution_type (str): One of 'uniform', 'normal', 'exponential', 'beta', 'truncated_normal', 'lognormal', 'categorical', 'categorical_non_uniform'
         """
-        if distribution_type not in ['uniform', 'normal', 'exponential', 'beta', 'truncated_normal', 'lognormal', 'categorical', 'categorical_non_uniform']:
+        if distribution_type not in ['uniform', 'normal', 'exponential', 'beta', 'truncated_normal', 'lognormal',
+                                     'categorical', 'categorical_non_uniform']:
             raise ValueError(f"Unsupported distribution type: {distribution_type}")
 
         for node in self.root_nodes:
@@ -1043,12 +1209,12 @@ class CausalDataGenerator:
                     std = old_settings.get('std', self.rng.uniform(0.1, 5.0))
                     low = old_settings.get('low', mean - 2 * std)
                     high = old_settings.get('high', mean + 2 * std)
-                    
+
                     # Ensure valid parameters
                     if low >= high:
                         low = mean - 1.5 * std
                         high = mean + 1.5 * std
-                    
+
                     self.root_ranges[node] = {
                         'dist': 'truncated_normal',
                         'mean': mean,
@@ -1098,13 +1264,14 @@ class CausalDataGenerator:
                     std = self.rng.uniform(0.1, 5.0)
                     low = mean - 2 * std
                     high = mean + 2 * std
-                    
+
                     # Ensure valid parameters
                     if low >= high:
                         low = mean - 1.5 * std
                         high = mean + 1.5 * std
-                    
-                    self.root_ranges[node] = {'dist': 'truncated_normal', 'mean': mean, 'std': std, 'low': low, 'high': high}
+
+                    self.root_ranges[node] = {'dist': 'truncated_normal', 'mean': mean, 'std': std, 'low': low,
+                                              'high': high}
                 elif distribution_type == 'lognormal':
                     mean = self.rng.uniform(0, 2)
                     sigma = self.rng.uniform(0.1, 1.0)
@@ -1147,11 +1314,15 @@ class CausalDataGenerator:
             idx += sz
         return mapper
 
-    def _set_categorical_roots(self, root_list, max_categories):
+    def _set_categorical_roots(self, root_list, max_categories, probabilities=None, skew_factor=None):
         """
-        Turn specified root nodes into categorical variables sampled
-        uniformly from 0 … (k−1).  We register them in both
-        self.root_ranges and a helper dict self.categorical_root_nodes.
+        Turn specified root nodes into categorical variables.
+        
+        Args:
+            root_list: List of root nodes to make categorical
+            max_categories: Maximum number of categories
+            probabilities: Dict mapping node names to probability lists (optional)
+            skew_factor: Float to generate skewed probabilities (optional)
         """
         if not hasattr(self, "categorical_root_nodes"):
             self.categorical_root_nodes = {}  # node → k
@@ -1159,10 +1330,35 @@ class CausalDataGenerator:
         for node in root_list:
             if node not in self.root_nodes:
                 raise ValueError(f"'{node}' is not a root node, cannot set as categorical.")
+            
             k = int(self.rng.integers(2, max_categories + 1))
             self.categorical_root_nodes[node] = k
-            # Mark in root_ranges so downstream code knows the “dist”
-            self.root_ranges[node] = {"dist": "categorical", "num_classes": k}
+            
+            # Determine distribution type and probabilities
+            if probabilities and node in probabilities:
+                # Use provided probabilities
+                probs = probabilities[node]
+                if len(probs) != k:
+                    raise ValueError(f"Probabilities for '{node}' must have length {k}, got {len(probs)}")
+                if not np.isclose(sum(probs), 1.0, atol=1e-6):
+                    raise ValueError(f"Probabilities for '{node}' must sum to 1.0, got {sum(probs)}")
+                
+                self.root_ranges[node] = {
+                    "dist": "categorical_non_uniform", 
+                    "num_classes": k,
+                    "probabilities": probs
+                }
+            elif skew_factor is not None:
+                # Generate skewed probabilities
+                probs = self._generate_skewed_probabilities(k, skew_factor)
+                self.root_ranges[node] = {
+                    "dist": "categorical_non_uniform", 
+                    "num_classes": k,
+                    "probabilities": probs
+                }
+            else:
+                # Uniform categorical (default behavior)
+                self.root_ranges[node] = {"dist": "categorical", "num_classes": k}
 
     def _sample_random_nominals(self, categorical_percentage, max_categories):
         """
@@ -1184,11 +1380,11 @@ class CausalDataGenerator:
     def _generate_skewed_probabilities(self, num_classes, skew_factor):
         """
         Generate skewed probabilities for non-uniform categorical distribution.
-        
+
         Args:
             num_classes (int): Number of categories
             skew_factor (float): Controls skewness (0.1 = very skewed, 0.9 = less skewed)
-            
+
         Returns:
             list: List of probabilities that sum to 1
         """
@@ -1197,3 +1393,159 @@ class CausalDataGenerator:
         # Normalize to sum to 1
         return (base_probs / base_probs.sum()).tolist()
 
+    def _get_adaptive_coefficient_bounds(self, graph_size):
+        """Adapt coefficient ranges based on graph size to prevent cascading explosions"""
+        if graph_size <= 10:
+            return {'coeff_range': (-2, 2), 'const_range': (-5, 5), 'power_range': (1.0, 2.0)}
+        elif graph_size <= 25:
+            return {'coeff_range': (-1.5, 1.5), 'const_range': (-3, 3), 'power_range': (1.0, 1.8)}
+        else:
+            return {'coeff_range': (-1, 1), 'const_range': (-2, 2), 'power_range': (1.0, 1.5)}
+
+    def _is_categorical_node(self, node):
+        """
+        Check if a node is categorical.
+        
+        Args:
+            node: Node name to check
+            
+        Returns:
+            bool: True if node is categorical, False otherwise
+        """
+        # Check if node is in nominal_nodes (non-root categorical)
+        if node in self.nominal_nodes:
+            return True
+            
+        # Check if node is in categorical_root_nodes (root categorical)
+        if hasattr(self, 'categorical_root_nodes') and node in self.categorical_root_nodes:
+            return True
+            
+        # Check if node has categorical distribution in root_ranges
+        if (node in self.root_ranges and 
+            self.root_ranges[node].get('dist') in ['categorical', 'categorical_non_uniform']):
+            return True
+            
+        return False
+
+    def _detect_categorical_parents(self, parents):
+        """
+        Detect which parents are categorical.
+        
+        Args:
+            parents: List of parent node names
+            
+        Returns:
+            list: List of categorical parent names
+        """
+        categorical_parents = []
+        for parent in parents:
+            if self._is_categorical_node(parent):
+                categorical_parents.append(parent)
+        return categorical_parents
+
+    def categorical_effect(self, categorical_var, effects_dict, default=0):
+        """
+        Create a piecewise function for categorical effects.
+        
+        This is a helper function for the dictionary interface that allows users
+        to easily define categorical relationships without writing complex np.select syntax.
+        
+        Args:
+            categorical_var: Name of the categorical variable
+            effects_dict: Dict mapping category values to effect expressions
+            default: Default value for unhandled categories
+            
+        Returns:
+            str: String expression using np.select
+            
+        Example:
+            categorical_effect('treatment', {
+                0: '2.5 * age',
+                1: '3.1 * age + 5.2',
+                2: '1.8 * age + 8.7'
+            })
+            Returns: 'np.select([treatment == 0, treatment == 1, treatment == 2], 
+                     [2.5 * age, 3.1 * age + 5.2, 1.8 * age + 8.7], default=0)'
+        """
+        if not effects_dict:
+            raise ValueError("effects_dict cannot be empty")
+            
+        # Sort categories for consistent ordering
+        categories = sorted(effects_dict.keys())
+        
+        # Build conditions and choices
+        conditions = [f"{categorical_var} == {cat}" for cat in categories]
+        choices = [effects_dict[cat] for cat in categories]
+        
+        # Create np.select expression
+        conditions_str = "[" + ", ".join(conditions) + "]"
+        choices_str = "[" + ", ".join(choices) + "]"
+        
+        return f"np.select({conditions_str}, {choices_str}, default={default})"
+
+    def categorical_where(self, categorical_var, true_effect, false_effect, condition_value=0):
+        """
+        Create a binary categorical effect using np.where.
+        
+        This is a simpler helper for binary categorical variables.
+        
+        Args:
+            categorical_var: Name of the categorical variable
+            true_effect: Effect when categorical_var equals condition_value
+            false_effect: Effect when categorical_var doesn't equal condition_value
+            condition_value: Value to check against (default: 0)
+            
+        Returns:
+            str: String expression using np.where
+            
+        Example:
+            categorical_where('treatment', '2.5 * age', '3.1 * age + 5.2', 0)
+            Returns: 'np.where(treatment == 0, 2.5 * age, 3.1 * age + 5.2)'
+        """
+        return f"np.where({categorical_var} == {condition_value}, {true_effect}, {false_effect})"
+
+    def set_skewed_categorical_roots(self, root_list, max_categories, skew_factor=0.7):
+        """
+        Convenience method to create skewed categorical root distributions.
+        
+        Args:
+            root_list: List of root nodes to make categorical
+            max_categories: Maximum number of categories
+            skew_factor: Controls skewness (0.1 = very skewed, 1.0 = uniform)
+            
+        Example:
+            cdg.set_skewed_categorical_roots(['education'], max_categories=4, skew_factor=0.3)
+            # Creates education with probabilities like [0.1, 0.2, 0.3, 0.4]
+        """
+        self._set_categorical_roots(root_list, max_categories, skew_factor=skew_factor)
+
+    def set_custom_categorical_roots(self, root_probabilities):
+        """
+        Set root categorical variables with custom probability distributions.
+        
+        Args:
+            root_probabilities: Dict mapping node names to probability lists
+            
+        Example:
+            cdg.set_custom_categorical_roots({
+                'education': [0.1, 0.5, 0.3, 0.1],  # 4 categories
+                'severity': [0.6, 0.25, 0.1, 0.05]   # 4 categories
+            })
+        """
+        for node, probs in root_probabilities.items():
+            if node not in self.root_nodes:
+                raise ValueError(f"'{node}' is not a root node, cannot set as categorical.")
+            
+            k = len(probs)
+            if not np.isclose(sum(probs), 1.0, atol=1e-6):
+                raise ValueError(f"Probabilities for '{node}' must sum to 1.0, got {sum(probs)}")
+            
+            if not hasattr(self, "categorical_root_nodes"):
+                self.categorical_root_nodes = {}
+            
+            self.categorical_root_nodes[node] = k
+            self.root_ranges[node] = {
+                "dist": "categorical_non_uniform", 
+                "num_classes": k,
+                "probabilities": probs
+            }

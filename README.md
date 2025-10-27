@@ -17,11 +17,27 @@ This repository explores and evaluates causal discovery algorithms for manufactu
 - Py-Tetrad (wrappers for Tetrad algorithms such as FGES, RFCI)
 - Extensible registry to add new algorithms with minimal integration overhead
 
-### Post-hoc Pruning with Background Knowledge
-After an algorithm proposes a causal graph, we optionally refine it using background knowledge and domain constraints. This pruning step leverages a CausalAssembly-style flow to:
-- Remove edges forbidden by known constraints
-- Enforce required adjacencies/orientations when specified
-- Improve precision by filtering spurious edges discovered under noise or domain shifts
+### Prior Knowledge Integration 🎯
+Our inference pipeline supports **background knowledge constraints** extracted from dataset metadata to improve causal discovery accuracy. Prior knowledge integration is available for all PyTetrad algorithms:
+
+- **Root Node Constraints**: Prevents incoming edges to root nodes (variables with no causes)
+- **Temporal Ordering**: Enforces station-wise precedence (nodes in later stations cannot cause earlier station nodes)
+- **Forbidden/Required Edges**: Explicit edge constraints from domain knowledge
+- **Tier Ordering**: Multi-tier temporal constraints for complex manufacturing processes
+
+**Usage:**
+```bash
+# Run with prior knowledge
+python inference_pipeline/main.py --use-prior-knowledge
+
+# Run specific algorithms with prior knowledge
+python inference_pipeline/main.py --use-prior-knowledge --algorithms TetradRFCI TetradFGES
+
+# Or configure in config.py
+USE_PRIOR_KNOWLEDGE = True
+```
+
+See `inference_pipeline/PRIOR_KNOWLEDGE_README.md` for detailed documentation.
 
 ### Repository Structure
 - `data_generator/`: Synthetic data generation utilities and entry points
@@ -50,64 +66,83 @@ python data_generator\main.py
 ```
 
 ### Usage Examples
-- Run with a categorical demo dataset and default config
+
+**Basic Usage:**
 ```bash
-python -m inference_pipeline.main \
-  --dataset_dir categorical_datasets/dataset_000 \
-  --config_path inference_pipeline/config.py \
-  --algorithm fges \
-  --framework py-tetrad
+# Run all algorithms on all datasets
+python inference_pipeline/main.py
+
+# Run with prior knowledge enabled
+python inference_pipeline/main.py --use-prior-knowledge
+
+# Run specific algorithms only
+python inference_pipeline/main.py --algorithms TetradRFCI TetradFGES
+
+# Specify custom input/output directories
+python inference_pipeline/main.py --input-dir my_datasets --output-dir my_results
 ```
 
-- Run with a mixed-type meta dataset (config-defined) and RFCI
-```bash
-python -m inference_pipeline.main \
-  --dataset_dir causal_meta_dataset/dataset_000_config_000 \
-  --config_path inference_pipeline/config.py \
-  --algorithm rfci \
-  --framework py-tetrad
+**Configuration:**
+Configuration is in `inference_pipeline/config.py`:
+```python
+INPUT_DIR = "causal_meta_dataset"  # Input directory
+OUTPUT_DIR = "causal_discovery_results2"  # Output directory
+USE_PRIOR_KNOWLEDGE = False  # Default prior knowledge setting
 ```
 
-- Enable post-hoc pruning with background knowledge
-```bash
-python -m inference_pipeline.main \
-  --dataset_dir causal_meta_dataset/dataset_000_config_000 \
-  --config_path inference_pipeline/config.py \
-  --algorithm fges \
-  --framework py-tetrad \
-  --prune_with_background true \
-  --background_path path/to/background_constraints.json
-```
+See `inference_pipeline/main.py --help` for all available options.
 
+### Supported Algorithms
+All PyTetrad algorithms are supported with prior knowledge integration:
+- **TetradRFCI**: Really Fast Causal Inference
+- **TetradFGES**: Fast Greedy Equivalence Search
+- **TetradGFCI**: Greedy Fast Causal Inference
+- **TetradCPC**: Conservative PC algorithm
+- **TetradCFCI**: Conservative FCI algorithm
+- **TetradFCI**: Fast Causal Inference
+- **TetradFCI-Max**: FCI with max orientation
 
-Note: The exact flags may evolve; see `inference_pipeline/config.py` and `inference_pipeline/main.py` for authoritative options.
-
-### Data-Type Agnostic Design
-The pipeline normalizes inputs and delegates type-specific handling to algorithm adapters. Each algorithm implements a small interface (fit/evaluate/serialize) so that adding a new method generally requires:
-- Writing an adapter in `inference_pipeline/utils/algorithm_registry.py`
-- Optionally exposing hyperparameters via `inference_pipeline/config.py`
+Each algorithm automatically handles:
+- Mixed data types (categorical, discrete, continuous)
+- Appropriate independence tests based on data types
+- Prior knowledge constraints when enabled
 
 ### Pipeline Diagram
 ```mermaid
 flowchart LR
-  A["Input Data<br/>(mixed types)"] --> B["Config Loader<br/>(dataset + params)"]
-  B --> C["Preprocessing<br/>(type-aware normalization)"]
-  C --> D{Algorithm Adapter}
-  D -->|Py-Tetrad| E[FGES/RFCI/...] 
-  E --> G[Candidate Graph]
-  G --> H{"Optional Post-hoc Pruning<br/>(CausalAssembly)"}
-  H --> I[Final Graph]
-  I --> J["Metrics + Reports<br/>(JSON/CSV)"]
+  A["Input Data<br/>(mixed types)"] --> B["Load Dataset<br/>(data + metadata)"]
+  B --> C["Extract Prior Knowledge<br/>(root nodes, stations, tiers)"]
+  C --> D{Algorithm Selection}
+  D -->|TetradRFCI/FGES/GFCI/etc| E["Run Algorithm<br/>(with prior knowledge)"]
+  E --> F["Compute Metrics<br/>(F1, precision, recall, SHD)"]
+  F --> G["Save Results<br/>(CSV + MLflow)"]
 ```
 
 ### Results and Evaluation
-- Example outputs are saved under `demo_results/` and `causal_discovery_results2/`
-- Summary statistics (e.g., precision/recall on adjacency/orientation) are produced as CSV/JSON artifacts for analysis
+
+Results are saved to `causal_discovery_results2/causal_discovery_analysis.csv` with comprehensive metrics:
+- **F1 Score**: Harmonic mean of precision and recall
+- **Precision**: Proportion of correct edges among discovered edges
+- **Recall**: Proportion of true edges that were discovered
+- **SHD**: Structural Hamming Distance from true graph
+- **Unified Score**: Combined metric balancing SHD and F1
+
+**Analyze results:**
+```bash
+# Run detailed analysis
+python inference_pipeline/analyze_results.py
+
+# View summary statistics
+python inference_pipeline/analyze_results.py --output results_summary.txt
+```
 
 ### Roadmap
-- Expand background-knowledge formats (soft constraints, priors)
-- Broaden algorithm coverage (score-based, constraint-based, hybrid, neural)
-- Add more real-world manufacturing datasets and noise/intervention regimes
+- ✅ Prior knowledge integration for all PyTetrad algorithms
+- ✅ Manufacturing-specific data generation with station information
+- ✅ Comprehensive metrics and evaluation framework
+- 🚧 Additional algorithm wrappers (TXGES, PC, GES)
+- 🚧 Soft constraints and probabilistic prior knowledge
+- 🚧 Real-world manufacturing datasets integration
 
 ### Contributing
 Issues and pull requests are welcome. Please lint and add tests where appropriate. Large generated files are ignored by `.gitignore` (e.g., raw arrays, MLflow runs, wheels, local virtualenvs).

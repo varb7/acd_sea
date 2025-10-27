@@ -35,16 +35,7 @@ except ImportError:
     TETRAD_AVAILABLE = False
     print("[WARNING] Tetrad algorithms not available - tetrad_* modules not found")
 
-# Try to import TXGES (new version)
-try:
-    import txges
-    TXGES_AVAILABLE = True
-    print("[INFO] TXGES algorithm available from txges library")
-except ImportError:
-    TXGES_AVAILABLE = False
-    print("[INFO] TXGES algorithm not available - txges not installed")
-
-# Optional external algorithms (BOSS) removed per request
+# Optional external algorithms (BOSS, TXGES) removed - not used in current pipeline
 
 
 
@@ -116,71 +107,7 @@ class BaseAlgorithm(ABC):
             metadata=metadata
         )
 
-# Removed Castle (PC, GES) and CausalLearn (FCI) fallback implementations
-
-
-class TXGESAlgorithm(BaseAlgorithm):
-    """TXGES Algorithm implementation using txges library"""
-    
-    def __init__(self, **kwargs):
-        super().__init__("TXGES", **kwargs)
-        
-    def _preprocess(self, data: np.ndarray, columns: list) -> Tuple[np.ndarray, Dict[str, Any]]:
-        """Preprocess data for TXGES algorithm"""
-        # TXGES works with continuous data, no scaling needed
-        metadata = {
-            'original_shape': data.shape,
-            'columns': columns
-        }
-        return data, metadata
-        
-    def _run_algorithm(self, preprocessed_data: np.ndarray, metadata: Dict[str, Any]) -> np.ndarray:
-        """Run TXGES algorithm"""
-        if not TXGES_AVAILABLE:
-            print("[WARNING] TXGES not available - txges not installed")
-            return np.zeros((preprocessed_data.shape[1], preprocessed_data.shape[1]))
-            
-        try:
-            print(f"[INFO] Starting TXGES with {preprocessed_data.shape[1]} variables...")
-            print(f"[INFO] Data shape: {preprocessed_data.shape}")
-            
-            # Initialize and run TXGES using the new usage pattern
-            model = txges.XGES()
-            model.fit(preprocessed_data)
-            
-            print("[INFO] Extracting adjacency matrix...")
-            # Get the adjacency matrix from the PDAG
-            pdag = model.get_pdag()
-            adj_matrix = pdag.to_adjacency_matrix()
-            
-            # Ensure it's the right shape
-            if adj_matrix.shape == (preprocessed_data.shape[1], preprocessed_data.shape[1]):
-                print(f"[INFO] TXGES completed successfully. Matrix shape: {adj_matrix.shape}")
-                return adj_matrix
-            else:
-                print(f"[WARNING] TXGES adjacency matrix shape mismatch: {adj_matrix.shape}")
-                return np.zeros((preprocessed_data.shape[1], preprocessed_data.shape[1]))
-                
-        except Exception as e:
-            print(f"[ERROR] TXGES algorithm failed: {e}")
-            return np.zeros((preprocessed_data.shape[1], preprocessed_data.shape[1]))
-        
-    def _postprocess(self, raw_output: np.ndarray, original_shape: Tuple[int, int], metadata: Dict[str, Any]) -> np.ndarray:
-        """Postprocess TXGES output"""
-        # Ensure output is binary and correct shape
-        if raw_output is None or np.any(np.isnan(raw_output)):
-            return np.zeros((original_shape[1], original_shape[1]))
-            
-        # Convert to binary
-        binary_output = (raw_output != 0).astype(int)
-        
-        # Ensure correct shape
-        if binary_output.shape != (original_shape[1], original_shape[1]):
-            print(f"[WARNING] TXGES output shape mismatch: {binary_output.shape} vs expected {(original_shape[1], original_shape[1])}")
-            return np.zeros((original_shape[1], original_shape[1]))
-            
-        return binary_output
-
+# Removed Castle (PC, GES), CausalLearn (FCI), and TXGES implementations - not used
 
 class TetradRFCIAlgorithm(BaseAlgorithm):
     """Tetrad RFCI Algorithm implementation using our modular module"""
@@ -219,16 +146,11 @@ class TetradRFCIAlgorithm(BaseAlgorithm):
             rfci = TetradRFCI(alpha=self.alpha, depth=self.depth)
             
             # Apply prior knowledge if available
+            prior = None
             if self.use_prior_knowledge and self.prior_knowledge:
-                try:
-                    from .prior_knowledge import create_tetrad_prior_knowledge
-                    prior = create_tetrad_prior_knowledge(self.prior_knowledge, list(preprocessed_data.columns))
-                    if prior is not None:
-                        rfci.setKnowledge(prior)
-                except Exception as e:
-                    print(f"[WARNING] Could not apply prior knowledge to RFCI: {e}")
+                prior = self.prior_knowledge
             
-            adj_matrix = rfci.run(preprocessed_data)
+            adj_matrix = rfci.run(preprocessed_data, prior=prior)
             
             print(f"[INFO] Tetrad RFCI completed successfully. Matrix shape: {adj_matrix.shape}")
             return adj_matrix
@@ -289,7 +211,13 @@ class TetradFGESAlgorithm(BaseAlgorithm):
             
             # Use our modular FGES implementation with optimized parameters
             fges = TetradFGES(penalty_discount=self.penalty_discount, max_degree=self.max_degree)
-            adj_matrix = fges.run(preprocessed_data)
+            
+            # Apply prior knowledge if available
+            prior = None
+            if self.use_prior_knowledge and self.prior_knowledge:
+                prior = self.prior_knowledge
+                
+            adj_matrix = fges.run(preprocessed_data, prior=prior)
             
             print(f"[INFO] Tetrad FGES completed successfully. Matrix shape: {adj_matrix.shape}")
             return adj_matrix
@@ -343,7 +271,10 @@ class AlgorithmRegistry:
                     return df, { 'original_shape': data.shape, 'columns': columns }
                 def _run_algorithm(self, preprocessed_data: pd.DataFrame, metadata: Dict[str, Any]) -> np.ndarray:
                     from tetrad_gfci import run_gfci
-                    return run_gfci(preprocessed_data, list(preprocessed_data.columns), alpha=self.alpha, depth=self.depth, penalty_discount=self.penalty_discount)
+                    prior = None
+                    if self.use_prior_knowledge and self.prior_knowledge:
+                        prior = self.prior_knowledge
+                    return run_gfci(preprocessed_data, list(preprocessed_data.columns), alpha=self.alpha, depth=self.depth, penalty_discount=self.penalty_discount, prior=prior)
                 def _postprocess(self, raw_output: np.ndarray, original_shape: Tuple[int, int], metadata: Dict[str, Any]) -> np.ndarray:
                     if raw_output is None or np.any(np.isnan(raw_output)):
                         return np.zeros((original_shape[1], original_shape[1]))
@@ -364,7 +295,10 @@ class AlgorithmRegistry:
                     return df, { 'original_shape': data.shape, 'columns': columns }
                 def _run_algorithm(self, preprocessed_data: pd.DataFrame, metadata: Dict[str, Any]) -> np.ndarray:
                     from tetrad_cpc import run_cpc
-                    return run_cpc(preprocessed_data, list(preprocessed_data.columns), alpha=self.alpha, depth=self.depth)
+                    prior = None
+                    if self.use_prior_knowledge and self.prior_knowledge:
+                        prior = self.prior_knowledge
+                    return run_cpc(preprocessed_data, list(preprocessed_data.columns), alpha=self.alpha, depth=self.depth, prior=prior)
                 def _postprocess(self, raw_output: np.ndarray, original_shape: Tuple[int, int], metadata: Dict[str, Any]) -> np.ndarray:
                     if raw_output is None or np.any(np.isnan(raw_output)):
                         return np.zeros((original_shape[1], original_shape[1]))
@@ -385,7 +319,10 @@ class AlgorithmRegistry:
                     return df, { 'original_shape': data.shape, 'columns': columns }
                 def _run_algorithm(self, preprocessed_data: pd.DataFrame, metadata: Dict[str, Any]) -> np.ndarray:
                     from tetrad_cfci import run_cfci
-                    return run_cfci(preprocessed_data, list(preprocessed_data.columns), alpha=self.alpha, depth=self.depth)
+                    prior = None
+                    if self.use_prior_knowledge and self.prior_knowledge:
+                        prior = self.prior_knowledge
+                    return run_cfci(preprocessed_data, list(preprocessed_data.columns), alpha=self.alpha, depth=self.depth, prior=prior)
                 def _postprocess(self, raw_output: np.ndarray, original_shape: Tuple[int, int], metadata: Dict[str, Any]) -> np.ndarray:
                     if raw_output is None or np.any(np.isnan(raw_output)):
                         return np.zeros((original_shape[1], original_shape[1]))
@@ -409,7 +346,10 @@ class AlgorithmRegistry:
                     return df, { 'original_shape': data.shape, 'columns': columns }
                 def _run_algorithm(self, preprocessed_data: pd.DataFrame, metadata: Dict[str, Any]) -> np.ndarray:
                     from tetrad_fci import run_fci
-                    return run_fci(preprocessed_data, list(preprocessed_data.columns), alpha=self.alpha, depth=self.depth)
+                    prior = None
+                    if self.use_prior_knowledge and self.prior_knowledge:
+                        prior = self.prior_knowledge
+                    return run_fci(preprocessed_data, list(preprocessed_data.columns), alpha=self.alpha, depth=self.depth, prior=prior)
                 def _postprocess(self, raw_output: np.ndarray, original_shape: Tuple[int, int], metadata: Dict[str, Any]) -> np.ndarray:
                     if raw_output is None or np.any(np.isnan(raw_output)):
                         return np.zeros((original_shape[1], original_shape[1]))
@@ -430,7 +370,10 @@ class AlgorithmRegistry:
                     return df, { 'original_shape': data.shape, 'columns': columns }
                 def _run_algorithm(self, preprocessed_data: pd.DataFrame, metadata: Dict[str, Any]) -> np.ndarray:
                     from tetrad_fci_max import run_fci_max
-                    return run_fci_max(preprocessed_data, list(preprocessed_data.columns), alpha=self.alpha, depth=self.depth)
+                    prior = None
+                    if self.use_prior_knowledge and self.prior_knowledge:
+                        prior = self.prior_knowledge
+                    return run_fci_max(preprocessed_data, list(preprocessed_data.columns), alpha=self.alpha, depth=self.depth, prior=prior)
                 def _postprocess(self, raw_output: np.ndarray, original_shape: Tuple[int, int], metadata: Dict[str, Any]) -> np.ndarray:
                     if raw_output is None or np.any(np.isnan(raw_output)):
                         return np.zeros((original_shape[1], original_shape[1]))
