@@ -1,0 +1,12 @@
+temporal_order: ['a', 'b', 'c', 'g', 'd', 'e', 'h', 'f']
+station_blocks: [['a', 'b', 'c'], ['g', 'd', 'e', 'h', 'f']]
+station_names: ['Station1', 'Station2']
+station_map: {'a': 'Station1', 'b': 'Station1', 'c': 'Station1', 'g': 'Station2', 'd': 'Station2', 'e': 'Station2', 'h': 'Station2', 'f': 'Station2'}
+num_nodes: 8
+edges: 9
+equation_type: linear
+manufacturing_distributions: {'b': {'dist': 'categorical', 'num_classes': 5}, 'a': {'dist': 'truncated_normal', 'mean': 6.973680290593639, 'std': 0.5614690046494828, 'low': 5.850742281294673, 'high': 8.096618299892604}}
+configuration: {'categorical_percentage': 0.2, 'continuous_percentage': 0.8, 'continuous_distributions': {'normal': 0.6, 'truncated_normal': 0.3, 'lognormal': 0.1}, 'categorical_distributions': {'uniform': 0.6, 'non_uniform': 0.4}, 'noise_level': 0.01, 'noise_type': 'normal', 'noise_params': {'mean': 0.0, 'std': 0.01}}
+root_percentage: 25.0
+categorical_root_percentage: 12.5
+seed: 42

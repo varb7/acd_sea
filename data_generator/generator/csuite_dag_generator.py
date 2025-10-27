@@ -73,11 +73,11 @@ class CSuiteConfig:
     def _config_chain(self):
         """Chain pattern: X0 -> X1 -> X2 -> ... -> Xn"""
         self.graph_structure = {
-            'edges': [(i, i+1) for i in range(self.num_nodes - 1)],
-            'root_nodes': [0],
-            'leaf_nodes': [self.num_nodes - 1]
+            'edges': [(str(i), str(i+1)) for i in range(self.num_nodes - 1)],
+            'root_nodes': ["0"],
+            'leaf_nodes': [str(self.num_nodes - 1)]
         }
-        self.variable_types = {i: 'continuous' for i in range(self.num_nodes)}
+        self.variable_types = {str(i): 'continuous' for i in range(self.num_nodes)}
         self.equation_type = 'linear'
         
     def _config_collider(self):
@@ -85,18 +85,18 @@ class CSuiteConfig:
         if self.num_nodes < 3:
             raise ValueError("Collider pattern requires at least 3 nodes")
         
-        edges = [(0, 1), (2, 1)]  # Basic collider
+        edges = [("0", "1"), ("2", "1")]  # Basic collider
         if self.num_nodes > 3:
             # Add additional nodes as children of the collider
             for i in range(3, self.num_nodes):
-                edges.append((1, i))
+                edges.append(("1", str(i)))
         
         self.graph_structure = {
             'edges': edges,
-            'root_nodes': [0, 2] if self.num_nodes == 3 else [0, 2] + list(range(3, self.num_nodes)),
-            'leaf_nodes': [1] if self.num_nodes == 3 else [i for i in range(3, self.num_nodes)]
+            'root_nodes': ["0", "2"] if self.num_nodes == 3 else ["0", "2"] + [str(i) for i in range(3, self.num_nodes)],
+            'leaf_nodes': ["1"] if self.num_nodes == 3 else [str(i) for i in range(3, self.num_nodes)]
         }
-        self.variable_types = {i: 'continuous' for i in range(self.num_nodes)}
+        self.variable_types = {str(i): 'continuous' for i in range(self.num_nodes)}
         self.equation_type = 'linear'
     
     def _config_backdoor(self):
@@ -104,18 +104,18 @@ class CSuiteConfig:
         if self.num_nodes < 3:
             raise ValueError("Backdoor pattern requires at least 3 nodes")
         
-        edges = [(0, 1), (2, 1)]  # Basic backdoor
+        edges = [("0", "1"), ("2", "1")]  # Basic backdoor
         if self.num_nodes > 3:
             # Add confounders
             for i in range(3, self.num_nodes):
-                edges.extend([(i, 0), (i, 2)])  # Confound both treatment and confounder
+                edges.extend([(str(i), "0"), (str(i), "2")])  # Confound both treatment and confounder
         
         self.graph_structure = {
             'edges': edges,
-            'root_nodes': [2] if self.num_nodes == 3 else [2] + list(range(3, self.num_nodes)),
-            'leaf_nodes': [1]
+            'root_nodes': ["2"] if self.num_nodes == 3 else ["2"] + [str(i) for i in range(3, self.num_nodes)],
+            'leaf_nodes': ["1"]
         }
-        self.variable_types = {i: 'continuous' for i in range(self.num_nodes)}
+        self.variable_types = {str(i): 'continuous' for i in range(self.num_nodes)}
         self.equation_type = 'linear'
     
     def _config_mixed_confounding(self):
@@ -124,23 +124,24 @@ class CSuiteConfig:
             raise ValueError("Mixed confounding pattern requires at least 4 nodes")
         
         # Treatment (X0), Outcome (X1), Confounders (X2+)
-        edges = [(0, 1)]  # Treatment -> Outcome
+        edges = [("0", "1")]  # Treatment -> Outcome
         for i in range(2, self.num_nodes):
-            edges.extend([(i, 0), (i, 1)])  # Confounders affect both treatment and outcome
+            edges.extend([(str(i), "0"), (str(i), "1")])  # Confounders affect both treatment and outcome
         
         self.graph_structure = {
             'edges': edges,
-            'root_nodes': list(range(2, self.num_nodes)),
-            'leaf_nodes': [1]
+            'root_nodes': [str(i) for i in range(2, self.num_nodes)],
+            'leaf_nodes': ["1"]
         }
         
         # Mix of discrete and continuous variables
         self.variable_types = {}
         for i in range(self.num_nodes):
+            node_str = str(i)
             if i in [0, 1]:  # Treatment and outcome
-                self.variable_types[i] = 'discrete' if i == 0 else 'continuous'
+                self.variable_types[node_str] = 'discrete' if i == 0 else 'continuous'
             else:  # Confounders
-                self.variable_types[i] = 'discrete' if i % 2 == 0 else 'continuous'
+                self.variable_types[node_str] = 'discrete' if i % 2 == 0 else 'continuous'
         
         self.equation_type = 'non_linear'
     
@@ -150,17 +151,17 @@ class CSuiteConfig:
             raise ValueError("Weak arrow pattern requires at least 3 nodes")
         
         # Create a chain with weak effects
-        edges = [(i, i+1) for i in range(self.num_nodes - 1)]
+        edges = [(str(i), str(i+1)) for i in range(self.num_nodes - 1)]
         if self.num_nodes > 3:
             # Add some weak cross-connections
-            edges.append((0, self.num_nodes - 1))  # Weak direct effect
+            edges.append(("0", str(self.num_nodes - 1)))  # Weak direct effect
         
         self.graph_structure = {
             'edges': edges,
-            'root_nodes': [0],
-            'leaf_nodes': [self.num_nodes - 1]
+            'root_nodes': ["0"],
+            'leaf_nodes': [str(self.num_nodes - 1)]
         }
-        self.variable_types = {i: 'continuous' for i in range(self.num_nodes)}
+        self.variable_types = {str(i): 'continuous' for i in range(self.num_nodes)}
         self.equation_type = 'linear'
         self.weak_effects = True  # Flag for weak causal effects
     
@@ -170,16 +171,16 @@ class CSuiteConfig:
             raise ValueError("Large backdoor pattern requires at least 4 nodes")
         
         # Treatment (X0), Outcome (X1), Multiple confounders (X2+)
-        edges = [(0, 1)]
+        edges = [("0", "1")]
         for i in range(2, self.num_nodes):
-            edges.extend([(i, 0), (i, 1)])  # Each confounder affects both treatment and outcome
+            edges.extend([(str(i), "0"), (str(i), "1")])  # Each confounder affects both treatment and outcome
         
         self.graph_structure = {
             'edges': edges,
-            'root_nodes': list(range(2, self.num_nodes)),
-            'leaf_nodes': [1]
+            'root_nodes': [str(i) for i in range(2, self.num_nodes)],
+            'leaf_nodes': ["1"]
         }
-        self.variable_types = {i: 'continuous' for i in range(self.num_nodes)}
+        self.variable_types = {str(i): 'continuous' for i in range(self.num_nodes)}
         self.equation_type = 'linear'
 
 
@@ -196,11 +197,11 @@ class CSuiteDAGGenerator:
         """Generate a DAG based on the CSuite configuration."""
         G = nx.DiGraph()
         
-        # Add nodes
+        # Add nodes (already using string IDs from config)
         for i in range(self.config.num_nodes):
-            G.add_node(i)
+            G.add_node(str(i))
         
-        # Add edges
+        # Add edges (already using string IDs from config)
         for source, target in self.config.graph_structure['edges']:
             G.add_edge(source, target)
         
@@ -226,7 +227,7 @@ class CSuiteDAGGenerator:
             seed=self.config.seed
         )
         
-        # Set the graph structure
+        # Set the graph structure (with string node IDs)
         cdg.G = G.copy()
         cdg.root_nodes = set(self.config.graph_structure['root_nodes'])
         
@@ -237,7 +238,7 @@ class CSuiteDAGGenerator:
             if var_type == 'discrete':
                 root_distributions[node] = {
                     'dist': 'categorical',
-                    'num_classes': 3 if node == 0 else 2  # Treatment has 3 classes, others have 2
+                    'num_classes': 3 if node == "0" else 2  # Treatment has 3 classes, others have 2
                 }
             else:  # continuous
                 root_distributions[node] = {
@@ -246,14 +247,15 @@ class CSuiteDAGGenerator:
                     'std': 1.0
                 }
         
-        # Generate data
-        df = cdg.generate_data_pipeline(
-            total_nodes=self.config.num_nodes,
-            root_nodes=len(self.config.graph_structure['root_nodes']),
-            edges=len(self.config.graph_structure['edges']),
-            equation_type=self.config.equation_type,
-            root_distributions_override=root_distributions
-        )
+        # Use direct SCDG API to preserve graph structure
+        # Step 1: Set root distributions
+        cdg.set_root_distributions(root_distributions)
+        
+        # Step 2: Assign equations to non-root nodes
+        cdg.assign_equations_to_graph_nodes(equation_type=self.config.equation_type)
+        
+        # Step 3: Generate data using the preset graph (now preserves CSuite structure!)
+        df = cdg.generate_data()
         
         # Apply station-wise temporal ordering
         topo_nodes = list(nx.topological_sort(G))

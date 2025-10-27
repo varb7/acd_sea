@@ -1,0 +1,15 @@
+num_nodes: 5
+num_roots: 1
+root_nodes: ['a']
+num_edges: 5
+num_samples: 1661
+equation_type: non_linear
+temporal_order: [np.str_('a'), 'b', 'c', 'e', 'd']
+station_map: {np.str_('a'): 'Station1', 'b': 'Station1', 'c': 'Station2', 'e': 'Station2', 'd': 'Station2'}
+station_blocks: [[np.str_('a'), 'b'], ['c', 'e', 'd']]
+station_names: ['Station1', 'Station2']
+manufacturing_distributions: {'a': {'dist': 'categorical_non_uniform', 'num_classes': np.int64(4), 'probabilities': [0.7885050636994729, 0.16804751130395798, 0.03581456525207191, 0.007632859744497184]}}
+root_percentage: 20.0
+categorical_root_percentage: 100.0
+seed: 42
+config: {'num_datasets': 5, 'output_dir': 'simple_test_datasets', 'seed': 42, 'nodes_range': [5, 10], 'root_percentage_range': [0.1, 0.3], 'edge_density_range': [0.3, 0.8], 'samples_range': [500, 2000], 'categorical_percentage': 0.1, 'continuous_distributions': {'normal': 0.6, 'truncated_normal': 0.3, 'lognormal': 0.1}, 'categorical_distributions': {'uniform': 0.5, 'non_uniform': 0.5}, 'relationship_mix': {'linear': 0.6, 'nonlinear': 0.3, 'mixed': 0.1}, 'noise_level': 0.005, 'extract_station_info': True, 'num_stations': 3, 'save_train_test_split': True, 'train_ratio': 0.8}

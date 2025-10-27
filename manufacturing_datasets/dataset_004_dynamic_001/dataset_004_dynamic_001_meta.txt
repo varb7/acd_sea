@@ -1,0 +1,12 @@
+temporal_order: ['b', 'a', 'e', 'f', 'u', 'c', 'd', 'g', 'i', 'm', 'j', 'q', 'h', 'k', 't', 'n', 'l', 'p', 'o', 'r', 's']
+station_blocks: [['b', 'a', 'e', 'f', 'u', 'c', 'd', 'g'], ['i', 'm', 'j', 'q', 'h', 'k', 't', 'n', 'l', 'p', 'o', 'r'], ['s']]
+station_names: ['Station1', 'Station2', 'Station3']
+station_map: {'b': 'Station1', 'a': 'Station1', 'e': 'Station1', 'f': 'Station1', 'u': 'Station1', 'c': 'Station1', 'd': 'Station1', 'g': 'Station1', 'i': 'Station2', 'm': 'Station2', 'j': 'Station2', 'q': 'Station2', 'h': 'Station2', 'k': 'Station2', 't': 'Station2', 'n': 'Station2', 'l': 'Station2', 'p': 'Station2', 'o': 'Station2', 'r': 'Station2', 's': 'Station3'}
+num_nodes: 21
+edges: 62
+equation_type: non_linear
+manufacturing_distributions: {'a': {'dist': 'categorical', 'num_classes': 5}, 'b': {'dist': 'normal', 'mean': 6.21850482246133, 'std': 4.6767392006178845}}
+configuration: {'categorical_percentage': 0.14790964579154306, 'continuous_percentage': 0.8520903542084569, 'continuous_distributions': {'normal': 0.6066847932943356, 'truncated_normal': 0.28199599515672275, 'lognormal': 0.11131921154894182}, 'categorical_distributions': {'uniform': 0.5362323921511901, 'non_uniform': 0.4637676078488099}, 'noise_level': 0.008582092906166641, 'noise_type': 'normal', 'noise_params': {'mean': 0.0, 'std': 0.0074599640317998045}, 'config_id': 'dynamic_001'}
+root_percentage: 9.523809523809524
+categorical_root_percentage: 4.761904761904762
+seed: 46

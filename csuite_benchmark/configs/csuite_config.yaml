@@ -1,0 +1,128 @@
+# CSuite Benchmark Configuration
+# Configuration for generating and evaluating CSuite-style datasets
+
+# Dataset generation parameters
+generation:
+  # Patterns to generate
+  patterns:
+    - chain
+    - collider
+    - backdoor
+    - mixed_confounding
+    - weak_arrow
+    - large_backdoor
+  
+  # Node count range
+  num_nodes_range: [2, 5]
+  
+  # Samples per dataset
+  num_samples: 1000
+  
+  # Random seed
+  seed: 42
+  
+  # Output directory
+  output_dir: "csuite_benchmark/datasets"
+
+# Pattern-specific configurations
+patterns:
+  chain:
+    min_nodes: 2
+    max_nodes: 5
+    equation_type: "linear"
+    variable_types: "continuous"
+    
+  collider:
+    min_nodes: 3
+    max_nodes: 5
+    equation_type: "linear"
+    variable_types: "continuous"
+    
+  backdoor:
+    min_nodes: 3
+    max_nodes: 5
+    equation_type: "linear"
+    variable_types: "continuous"
+    
+  mixed_confounding:
+    min_nodes: 4
+    max_nodes: 5
+    equation_type: "non_linear"
+    variable_types: "mixed"
+    discrete_probability: 0.4
+    
+  weak_arrow:
+    min_nodes: 3
+    max_nodes: 5
+    equation_type: "linear"
+    variable_types: "continuous"
+    weak_effects: true
+    
+  large_backdoor:
+    min_nodes: 4
+    max_nodes: 5
+    equation_type: "linear"
+    variable_types: "continuous"
+
+# Evaluation parameters
+evaluation:
+  # Algorithms to evaluate
+  algorithms:
+    - pc
+    - ges
+    - fges
+    - fci
+    - rfci
+    - gfci
+    - boss
+    - sam
+    - cpc
+    - cfci
+    - fci_max
+  
+  # Evaluation metrics
+  metrics:
+    - shd
+    - f1_score
+    - precision
+    - recall
+    - specificity
+    - sensitivity
+    - pattern_accuracy
+    
+  # Pattern-specific evaluation
+  pattern_evaluation:
+    enabled: true
+    detailed_analysis: true
+    
+  # Cross-algorithm comparison
+  algorithm_comparison:
+    enabled: true
+    statistical_tests: true
+    
+  # Reporting
+  generate_reports: true
+  report_formats: ["csv", "json", "html"]
+
+# Output configuration
+output:
+  # Results directory
+  results_dir: "csuite_benchmark/results"
+  
+  # Individual results
+  individual_results: true
+  
+  # Pattern-specific results
+  pattern_results: true
+  
+  # Algorithm comparison results
+  algorithm_comparison: true
+  
+  # Summary statistics
+  summary_stats: true
+
+# Logging
+logging:
+  level: "INFO"
+  log_file: "csuite_benchmark/csuite_evaluation.log"
+  console_output: true

@@ -927,7 +927,10 @@ class CausalDataGenerator:
                 coeff = round(self.rng.uniform(-2, 2), 2)
             const = round(self.rng.uniform(-5, 5), 2)
             power = round(self.rng.uniform(1.0, 2.0), 2)
-            expression = function_template.format(parent, coeff=coeff, const=const, power=power)
+            # Fix: Use the parent as a variable name directly in the expression
+            # First format with placeholders, then replace {0} with actual parent name
+            expression = function_template.replace('{0}', parent)
+            expression = expression.format(coeff=coeff, const=const, power=power)
             node_functions[(parent,), child] = expression
         return node_functions
 
@@ -1126,12 +1129,22 @@ class CausalDataGenerator:
             # Extract variables more carefully, handling np.select and np.where
             import re
             # Find all variable names that are not function names or parameters
+            # Extract variables that look like identifiers (letters/underscores or standalone digits)
+            # Exclude numeric constants by checking if they're part of mathematical operations
             var_pattern = r'\b([a-zA-Z_][a-zA-Z0-9_]*)\b'
             all_matches = re.findall(var_pattern, expr)
             
             for match in all_matches:
                 if match not in allowable_functions and match not in parameter_names:
                     expr_vars.add(match)
+            
+            # Also check for numeric variables (like "0", "1") but only if they appear as standalone
+            # Check if the numeric part exists independently (not part of a number like "3.59")
+            standalone_numbers = re.findall(r'(?<!\d)\b([0-9]+)\b(?!\d)', expr)
+            for num_str in standalone_numbers:
+                # Only add if it's a valid variable name (single digit without decimal context)
+                if num_str in [str(p) for p in parents]:
+                    expr_vars.add(num_str)
             if set(parents) - expr_vars:
                 raise ValueError(f"Expression '{expr}' for '{child}' does not use all parent variables.")
             if expr_vars - set(parents):
