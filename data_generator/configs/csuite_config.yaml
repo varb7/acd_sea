@@ -1,0 +1,22 @@
+pattern: collider
+num_nodes: 5
+num_datasets: 2
+num_samples: 1000
+seed: 42
+output_dir: csuite_datasets_test
+train_ratio: 0.8
+num_stations: 3
+
+# Optional overrides
+# equation_type: linear  # linear | non_linear | random
+
+# Root node controls
+# root_categorical: false      # if true, roots become categorical
+# root_num_classes: 3
+# root_normal_mean: 0.0
+# root_normal_std: 1.0
+
+# Non-root categorical controls
+# nonroot_categorical_pct: 0.0         # fraction of non-roots to flip to nominal (0.0-1.0)
+# nonroot_categorical_num_classes: 3
+

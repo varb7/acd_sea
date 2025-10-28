@@ -20,3 +20,13 @@ acd/
 causenv/
 etiaenv/
 
+# Generated datasets - ignore all dataset output folders
+data_generator/simple_test_datasets/
+data_generator/csuite_datasets_test/
+csuite_datasets/
+simple_test_datasets/
+causal_meta_dataset/
+manufacturing_datasets/
+*.rar
+*.zip
+

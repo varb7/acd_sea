@@ -10,11 +10,13 @@ import yaml
 
 try:
     from generator.dataset_generator import generate_all_datasets
-    from generator.csuite_dag_generator import generate_csuite_meta_dataset as generate_csuite_datasets
+    from generator.csuite2 import generate_csuite2_dataset
+    from generator.utils import save_dataset_with_splits
     from simple_config import load_config, save_config_template
 except ImportError:
     from data_generator.generator.dataset_generator import generate_all_datasets
-    from data_generator.generator.csuite_dag_generator import generate_csuite_meta_dataset as generate_csuite_datasets
+    from data_generator.generator.csuite2 import generate_csuite2_dataset
+    from data_generator.generator.utils import save_dataset_with_splits
     from data_generator.simple_config import load_config, save_config_template
 
 
@@ -72,21 +74,39 @@ Examples:
     # Generate datasets
     try:
         if args.mode == 'csuite':
-            print(f"Generating CSuite-style datasets...")
-            # Extract CSuite-specific parameters from config or use defaults
-            patterns = config.get('csuite_patterns', None)
-            num_nodes_range = tuple(config.get('nodes_range', [2, 5]))
-            num_samples = config.get('samples_range', [1000, 1000])[0]  # Use first value
+            print(f"Generating CSuite-style datasets (v2)...")
+            # Enforce single pattern and num_nodes <= 10
+            pattern = config.get('pattern', 'chain')
+            num_nodes = int(config.get('num_nodes', 5))
+            if num_nodes > 10:
+                raise ValueError("For CSuite mode, num_nodes must be <= 10")
+            num_datasets = int(config.get('num_datasets', 1))
+            num_samples = int(config.get('num_samples', config.get('samples_range', [1000,1000])[0]))
             output_dir = config.get('output_dir', 'csuite_datasets')
-            seed = config.get('seed', 42)
-            
-            generate_csuite_datasets(
-                patterns=patterns,
-                num_nodes_range=num_nodes_range,
-                num_samples=num_samples,
-                output_dir=output_dir,
-                seed=seed
-            )
+            seed = int(config.get('seed', 42))
+            train_ratio = float(config.get('train_ratio', 0.8))
+
+            Path(output_dir).mkdir(parents=True, exist_ok=True)
+            index_file = str(Path(output_dir) / 'index.csv')
+
+            for i in range(num_datasets):
+                cfg = {
+                    'pattern': pattern,
+                    'num_nodes': num_nodes,
+                    'num_samples': num_samples,
+                    'seed': seed + i,
+                    'num_stations': int(config.get('num_stations', 3)),
+                }
+                df, metadata, G = generate_csuite2_dataset(cfg)
+
+                # adjacency ordered by temporal order
+                ordered = metadata['temporal_order']
+                import networkx as nx
+                adj = nx.to_numpy_array(G, nodelist=ordered, dtype=int)
+
+                base = f"csuite_{pattern}_{num_nodes}nodes_{i:03d}"
+                ddir = str(Path(output_dir) / base)
+                save_dataset_with_splits(df, adj, metadata, ddir, base, index_file=index_file, train_ratio=train_ratio)
         else:
             print(f"Generating simple datasets...")
             generate_all_datasets(config)
