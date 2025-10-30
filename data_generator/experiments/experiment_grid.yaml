@@ -1,0 +1,33 @@
+# Experiment grid for CSuite data generation (Phase 1 + Phase 2)
+
+# Output location for generated datasets and index.csv
+output_dir: csuite_grid_datasets
+train_ratio: 0.8
+num_stations: 3
+
+phase1:
+  # Sizes 2..10, patterns constrained by minimum-n rules in generator
+  sizes: [2,3,4,5,6,7,8,9,10]
+  patterns: [chain, collider, backdoor, weak_arrow]
+  samples: [1000]
+  seeds: 3
+  var_types: [continuous]   # continuous = no categorical roots and no nominal non-roots
+  override_equation: false  # use pattern default (mostly linear)
+
+phase2:
+  sizes: [5,8,10]
+  patterns: [chain, collider, backdoor, weak_arrow, large_backdoor, mixed_confounding]
+  samples: [1000, 2000]
+  seeds: 3
+  var_types: [continuous, mixed]
+  # Equation types per pattern: mixed_confounding stays non_linear; others cover linear/non_linear
+  equation_types_by_pattern:
+    default: [linear, non_linear]
+    mixed_confounding: [non_linear]
+  # Mixed variable configuration
+  mixed_config:
+    root_categorical: true
+    root_num_classes: 3
+    nonroot_categorical_pct: 0.3
+    nonroot_categorical_num_classes: 3
+
