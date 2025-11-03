@@ -31,19 +31,47 @@ except ImportError:
     from inference_pipeline.utils.prior_knowledge import format_prior_knowledge_for_algorithm
 
 
+def _resolve_dataset_dir(index_fp: Path, rel_or_abs_graph_path: str) -> Path:
+    """
+    Resolve a dataset directory given an index file path and the fp_graph value.
+    Tries multiple bases:
+      1) Absolute path (if provided)
+      2) Relative to index directory
+      3) Relative to parent of index directory (matches save_dataset_with_splits base_root)
+    Returns the first candidate that contains graph.npy and data.npy.
+    """
+    p = Path(rel_or_abs_graph_path)
+    candidates: List[Path] = []
+    if p.is_absolute():
+        candidates.append(p.parent)
+    else:
+        index_dir = index_fp.parent
+        candidates.append((index_dir / p).parent)
+        candidates.append((index_dir.parent / p).parent)
+
+    for d in candidates:
+        try:
+            if (d / 'graph.npy').exists() and (d / 'data.npy').exists():
+                return d
+        except Exception:
+            continue
+
+    # Fallback to the first constructed candidate
+    return candidates[0]
+
+
 def find_dataset_dirs_from_index(index_fp: Path) -> List[Path]:
     df = pd.read_csv(index_fp)
-    # Use fp_graph column to identify dataset directory
     if 'fp_graph' not in df.columns:
         raise ValueError("index.csv must contain 'fp_graph' column")
+
     dirs = []
     for p in df['fp_graph'].dropna().unique():
-        d = Path(index_fp).parent / Path(p)
-        # If path is absolute, don't join with parent
-        d = Path(p) if Path(p).is_absolute() else d
-        dirs.append(Path(d).parent)
+        d = _resolve_dataset_dir(index_fp, str(p))
+        dirs.append(d)
+
     # Deduplicate
-    uniq = []
+    uniq: List[Path] = []
     seen = set()
     for d in dirs:
         rp = str(Path(d).resolve())
@@ -72,9 +100,24 @@ def run_on_dataset(dataset_dir: Path, registry: AlgorithmRegistry, use_prior: bo
     true_adj = np.load(graph_fp)
     max_edges = true_adj.size
 
+    # Log high-level dataset info once
+    try:
+        print(f"\n=== DATASET ===")
+        print(f"Path: {dataset_dir}")
+        print(f"Pattern: {meta.get('pattern')} | nodes: {meta.get('num_nodes')} | edges: {meta.get('num_edges')} | samples: {meta.get('num_samples')} | seed: {meta.get('seed')}")
+        print(f"Prior knowledge: {'ENABLED' if bool(use_prior) else 'DISABLED'}")
+    except Exception:
+        # Keep robust even if meta is missing some fields
+        print(f"\n=== DATASET ===\nPath: {dataset_dir}")
+
     algos = registry.list_algorithms()
     results = []
     for algo in algos:
+        # Per-algorithm log line
+        try:
+            print(f"[RUN] Algorithm: {algo} | Dataset: {dataset_dir.name} | Prior: {'yes' if bool(use_prior) else 'no'}")
+        except Exception:
+            print(f"[RUN] Algorithm: {algo} | Prior: {'yes' if bool(use_prior) else 'no'}")
         prior = None
         if use_prior:
             try:
@@ -149,4 +192,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

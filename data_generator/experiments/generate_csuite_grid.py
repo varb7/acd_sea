@@ -13,6 +13,7 @@ to support downstream analysis.
 from pathlib import Path
 import argparse
 import os
+import sys
 import pickle
 from typing import Dict, List
 
@@ -20,14 +21,21 @@ import yaml
 import numpy as np
 import networkx as nx
 
+# Add parent directories to path to support imports from different working directories
+_script_dir = Path(__file__).parent
+_project_root = _script_dir.parent.parent  # Go up from experiments/ to data_generator/ to root
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
+
+# Now try imports - this should work from any directory
 try:
-    # Local imports when running from data_generator root
-    from generator.csuite2 import generate_csuite2_dataset
-    from generator.utils import save_dataset_with_splits
-except ImportError:
-    # Absolute fallback
+    # Try absolute import first (when run from project root)
     from data_generator.generator.csuite2 import generate_csuite2_dataset
     from data_generator.generator.utils import save_dataset_with_splits
+except ImportError:
+    # Fallback to relative import (when run from data_generator directory)
+    from generator.csuite2 import generate_csuite2_dataset
+    from generator.utils import save_dataset_with_splits
 
 
 def valid_patterns_for_n(n: int, patterns: List[str]) -> List[str]:

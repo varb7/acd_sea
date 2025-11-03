@@ -20,32 +20,37 @@ REX_AVAILABLE = False
 
 # Python-only alternatives to FGES (currently disabled)
 
-# Tetrad algorithms
+# Tetrad algorithms (robust import for core modules only)
+TETRAD_AVAILABLE = False
 try:
     from tetrad_rfci import TetradRFCI
     from tetrad_fges import TetradFGES
-    from tetrad_gfci import TetradGFCI
-    from tetrad_fci_max import TetradFCIMax
-    from tetrad_fci import TetradFCI
-    from tetrad_cpc import TetradCPC
-    from tetrad_cfci import TetradCFCI
-    from tetrad_pc import TetradPC
     TETRAD_AVAILABLE = True
-    print("[INFO] Tetrad algorithms (RFCI, FGES, GFCI, FCI, FCI-Max, CPC, CFCI, PC) available")
 except ImportError:
-    TETRAD_AVAILABLE = False
-    print("[WARNING] Tetrad algorithms not available - tetrad_* modules not found")
+    try:
+        from inference_pipeline.tetrad_rfci import TetradRFCI
+        from inference_pipeline.tetrad_fges import TetradFGES
+        TETRAD_AVAILABLE = True
+    except ImportError:
+        TETRAD_AVAILABLE = False
+        print("[WARNING] Tetrad core algorithms not available - tetrad_rfci/ tetrad_fges modules not found")
 
-# FCI Variants (BOSS-FCI, GRaSP-FCI, SP-FCI)
+# FCI Variants (BOSS-FCI, GRaSP-FCI, SP-FCI) - robust import
+FCI_VARIANTS_AVAILABLE = False
 try:
     from tetrad_boss_fci import TetradBossFCI
     from tetrad_grasp_fci import TetradGraspFCI
     from tetrad_sp_fci import TetradSpFCI
     FCI_VARIANTS_AVAILABLE = True
-    print("[INFO] FCI variants (BOSS-FCI, GRaSP-FCI, SP-FCI) available")
-except ImportError as e:
-    FCI_VARIANTS_AVAILABLE = False
-    print(f"[INFO] FCI variants not available: {e}")
+except ImportError:
+    try:
+        from inference_pipeline.tetrad_boss_fci import TetradBossFCI
+        from inference_pipeline.tetrad_grasp_fci import TetradGraspFCI
+        from inference_pipeline.tetrad_sp_fci import TetradSpFCI
+        FCI_VARIANTS_AVAILABLE = True
+    except ImportError as e:
+        FCI_VARIANTS_AVAILABLE = False
+        print(f"[INFO] FCI variants not available: {e}")
 
 # Optional external algorithms (BOSS, TXGES) removed - not used in current pipeline
 
@@ -266,7 +271,11 @@ class AlgorithmRegistry:
     def _register_default_algorithms(self):
         """Register only PyTetrad algorithms (no fallbacks)."""
         if not TETRAD_AVAILABLE:
-            raise RuntimeError("PyTetrad algorithms are not available. Ensure tetrad_rfci.py and tetrad_fges.py are present.")
+            print("[WARNING] PyTetrad algorithms are not available. Skipping Tetrad registrations.")
+            # Intentionally return without raising to allow the pipeline to continue
+            # (e.g., for environments without PyTetrad). The caller may see an
+            # empty algorithm list and still complete the run without results.
+            return
         self.register_algorithm(TetradRFCIAlgorithm())
         self.register_algorithm(TetradFGESAlgorithm())
         # Add GFCI
@@ -282,7 +291,10 @@ class AlgorithmRegistry:
                     df = pd.DataFrame(data, columns=columns)
                     return df, { 'original_shape': data.shape, 'columns': columns }
                 def _run_algorithm(self, preprocessed_data: pd.DataFrame, metadata: Dict[str, Any]) -> np.ndarray:
-                    from tetrad_gfci import run_gfci
+                    try:
+                        from tetrad_gfci import run_gfci
+                    except ImportError:
+                        from inference_pipeline.tetrad_gfci import run_gfci
                     prior = None
                     if self.use_prior_knowledge and self.prior_knowledge:
                         prior = self.prior_knowledge
@@ -306,7 +318,10 @@ class AlgorithmRegistry:
                     df = pd.DataFrame(data, columns=columns)
                     return df, { 'original_shape': data.shape, 'columns': columns }
                 def _run_algorithm(self, preprocessed_data: pd.DataFrame, metadata: Dict[str, Any]) -> np.ndarray:
-                    from tetrad_cpc import run_cpc
+                    try:
+                        from tetrad_cpc import run_cpc
+                    except ImportError:
+                        from inference_pipeline.tetrad_cpc import run_cpc
                     prior = None
                     if self.use_prior_knowledge and self.prior_knowledge:
                         prior = self.prior_knowledge
@@ -330,7 +345,10 @@ class AlgorithmRegistry:
                     df = pd.DataFrame(data, columns=columns)
                     return df, { 'original_shape': data.shape, 'columns': columns }
                 def _run_algorithm(self, preprocessed_data: pd.DataFrame, metadata: Dict[str, Any]) -> np.ndarray:
-                    from tetrad_cfci import run_cfci
+                    try:
+                        from tetrad_cfci import run_cfci
+                    except ImportError:
+                        from inference_pipeline.tetrad_cfci import run_cfci
                     prior = None
                     if self.use_prior_knowledge and self.prior_knowledge:
                         prior = self.prior_knowledge
@@ -357,7 +375,10 @@ class AlgorithmRegistry:
                     df = pd.DataFrame(data, columns=columns)
                     return df, { 'original_shape': data.shape, 'columns': columns }
                 def _run_algorithm(self, preprocessed_data: pd.DataFrame, metadata: Dict[str, Any]) -> np.ndarray:
-                    from tetrad_fci import run_fci
+                    try:
+                        from tetrad_fci import run_fci
+                    except ImportError:
+                        from inference_pipeline.tetrad_fci import run_fci
                     prior = None
                     if self.use_prior_knowledge and self.prior_knowledge:
                         prior = self.prior_knowledge
@@ -381,7 +402,10 @@ class AlgorithmRegistry:
                     df = pd.DataFrame(data, columns=columns)
                     return df, { 'original_shape': data.shape, 'columns': columns }
                 def _run_algorithm(self, preprocessed_data: pd.DataFrame, metadata: Dict[str, Any]) -> np.ndarray:
-                    from tetrad_fci_max import run_fci_max
+                    try:
+                        from tetrad_fci_max import run_fci_max
+                    except ImportError:
+                        from inference_pipeline.tetrad_fci_max import run_fci_max
                     prior = None
                     if self.use_prior_knowledge and self.prior_knowledge:
                         prior = self.prior_knowledge
@@ -406,7 +430,10 @@ class AlgorithmRegistry:
                     df = pd.DataFrame(data, columns=columns)
                     return df, {'original_shape': data.shape, 'columns': columns}
                 def _run_algorithm(self, preprocessed_data: pd.DataFrame, metadata: Dict[str, Any]) -> np.ndarray:
-                    from tetrad_pc import TetradPC
+                    try:
+                        from tetrad_pc import TetradPC
+                    except ImportError:
+                        from inference_pipeline.tetrad_pc import TetradPC
                     prior = None
                     if self.use_prior_knowledge and self.prior_knowledge:
                         prior = self.prior_knowledge
@@ -440,7 +467,10 @@ class AlgorithmRegistry:
                         df = pd.DataFrame(data, columns=columns)
                         return df, {'original_shape': data.shape, 'columns': columns}
                     def _run_algorithm(self, preprocessed_data: pd.DataFrame, metadata: Dict[str, Any]) -> np.ndarray:
-                        from tetrad_boss_fci import TetradBossFCI
+                        try:
+                            from tetrad_boss_fci import TetradBossFCI
+                        except ImportError:
+                            from inference_pipeline.tetrad_boss_fci import TetradBossFCI
                         prior = None
                         if self.use_prior_knowledge and self.prior_knowledge:
                             prior = self.prior_knowledge
@@ -476,7 +506,10 @@ class AlgorithmRegistry:
                         df = pd.DataFrame(data, columns=columns)
                         return df, {'original_shape': data.shape, 'columns': columns}
                     def _run_algorithm(self, preprocessed_data: pd.DataFrame, metadata: Dict[str, Any]) -> np.ndarray:
-                        from tetrad_grasp_fci import TetradGraspFCI
+                        try:
+                            from tetrad_grasp_fci import TetradGraspFCI
+                        except ImportError:
+                            from inference_pipeline.tetrad_grasp_fci import TetradGraspFCI
                         prior = None
                         if self.use_prior_knowledge and self.prior_knowledge:
                             prior = self.prior_knowledge
@@ -517,7 +550,10 @@ class AlgorithmRegistry:
                             print(f"[WARNING] TetradSpFCI skipped: {num_vars} variables exceeds limit of 11")
                             return np.zeros((num_vars, num_vars))
                         
-                        from tetrad_sp_fci import TetradSpFCI
+                        try:
+                            from tetrad_sp_fci import TetradSpFCI
+                        except ImportError:
+                            from inference_pipeline.tetrad_sp_fci import TetradSpFCI
                         prior = None
                         if self.use_prior_knowledge and self.prior_knowledge:
                             prior = self.prior_knowledge

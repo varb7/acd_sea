@@ -171,11 +171,13 @@ def generate_data_with_scdg(G: nx.DiGraph,
                             nonroot_categorical_num_classes: int = 3) -> pd.DataFrame:
     cdg = CausalDataGenerator(num_samples=num_samples, seed=seed)
     cdg.G = G.copy()
-    cdg.root_nodes = set(root_nodes)
+    # Recompute roots from the graph to ensure consistency with SCDG
+    graph_roots: List[str] = [n for n in G.nodes if G.in_degree(n) == 0]
+    cdg.root_nodes = set(graph_roots)
 
     # Build root distributions
     root_distributions: Dict[str, Dict] = {}
-    for r in root_nodes:
+    for r in graph_roots:
         if root_categorical:
             root_distributions[r] = {"dist": "categorical", "num_classes": int(root_num_classes)}
         else:
@@ -184,14 +186,14 @@ def generate_data_with_scdg(G: nx.DiGraph,
 
     # Optionally flip a percentage of non-root nodes to nominal (categorical)
     if nonroot_categorical_pct and nonroot_categorical_pct > 0:
-        non_roots = [n for n in G.nodes if n not in root_nodes]
+        non_roots = [n for n in G.nodes if n not in graph_roots]
         k = max(1, int(len(non_roots) * float(nonroot_categorical_pct)))
         rng = np.random.default_rng(seed)
         chosen = rng.choice(non_roots, size=min(k, len(non_roots)), replace=False)
         nominal_map: Dict[str, Dict] = {}
         for node in chosen:
             parents = list(G.predecessors(node))
-            parent_input = parents[0] if parents else (root_nodes[0] if root_nodes else None)
+            parent_input = parents[0] if parents else (graph_roots[0] if graph_roots else None)
             if parent_input is None:
                 continue
             nominal_map[node] = {"input": parent_input, "num_classes": int(nonroot_categorical_num_classes)}

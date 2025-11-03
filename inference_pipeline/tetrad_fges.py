@@ -137,10 +137,14 @@ class TetradFGES:
         fges = self.search.Fges(score_function)
         if self.max_degree is not None and self.max_degree >= 0:
             fges.setMaxDegree(self.max_degree)
+            print(f"[DEBUG FGES] Set max_degree={self.max_degree}")
         
         # Apply prior knowledge if provided
         if knowledge is not None:
             fges.setKnowledge(knowledge)
+            print(f"[DEBUG FGES] Prior knowledge applied")
+        else:
+            print(f"[DEBUG FGES] No prior knowledge provided")
         
         # Try to enable parallelism if supported by this Tetrad build
         if self.parallel:
@@ -155,7 +159,18 @@ class TetradFGES:
                             getattr(fges, meth)(True)  # generic boolean
                     except Exception:
                         pass
-        return fges.search()
+        
+        print(f"[DEBUG FGES] Running FGES search...")
+        graph_result = fges.search()
+        print(f"[DEBUG FGES] FGES returned graph with {graph_result.getNumNodes()} nodes")
+        
+        # Count edges in the raw result
+        edge_count = 0
+        for edge in list(graph_result.getEdges()):
+            edge_count += 1
+        print(f"[DEBUG FGES] Raw graph has {edge_count} edges")
+        
+        return graph_result
 
     # ---------------- Adjacency (direct edges only) ----------------
 
@@ -165,21 +180,41 @@ class TetradFGES:
         adj = np.zeros((n, n), dtype=int)
         Endpoint = self.graph.Endpoint  # TAIL, ARROW, ...
 
+        edge_details = []
         # Iterate declared edges (most robust across versions)
         for e in list(dag.getEdges()):
             n1 = e.getNode1(); n2 = e.getNode2()
             a = n1.getName(); b = n2.getName()
             ea = e.getProximalEndpoint(n1); eb = e.getProximalEndpoint(n2)
+            
             if ea == Endpoint.TAIL and eb == Endpoint.ARROW:
-                i = columns.index(a); j = columns.index(b)
-                adj[i, j] = 1
+                if a in columns and b in columns:
+                    i = columns.index(a); j = columns.index(b)
+                    adj[i, j] = 1
+                    edge_details.append(f"{a} -> {b} (TAIL-ARROW)")
             elif eb == Endpoint.TAIL and ea == Endpoint.ARROW:
-                i = columns.index(b); j = columns.index(a)
-                adj[i, j] = 1
+                if a in columns and b in columns:
+                    i = columns.index(b); j = columns.index(a)
+                    adj[i, j] = 1
+                    edge_details.append(f"{b} -> {a} (ARROW-TAIL)")
             elif self.include_undirected and ea == Endpoint.TAIL and eb == Endpoint.TAIL:
-                i = columns.index(a); j = columns.index(b)
-                adj[i, j] = 1
-                adj[j, i] = 1
+                if a in columns and b in columns:
+                    i = columns.index(a); j = columns.index(b)
+                    adj[i, j] = 1
+                    adj[j, i] = 1
+                    edge_details.append(f"{a} <-> {b} (TAIL-TAIL undirected)")
+        
+        if edge_details:
+            print(f"[DEBUG FGES] Edge details ({len(edge_details)} edges):")
+            for detail in edge_details[:10]:  # Show first 10
+                print(f"  {detail}")
+            if len(edge_details) > 10:
+                print(f"  ... and {len(edge_details) - 10} more edges")
+        else:
+            print(f"[DEBUG FGES] No edges found in graph (dag.getEdges() returned {len(list(dag.getEdges()))} edges)")
+            print(f"[DEBUG FGES] Graph nodes: {[n.getName() for n in list(dag.getNodes())]}")
+            print(f"[DEBUG FGES] Expected columns: {columns}")
+            
         return adj
 
     # ---------------- Public API ----------------
@@ -208,18 +243,33 @@ class TetradFGES:
                 print(f"[WARNING] Could not build knowledge for FGES: {e}")
 
         tetrad_data, cats, cont = self._convert_to_tetrad_format(df)
+        print(f"[DEBUG FGES] Data types - categorical: {len(cats)}, continuous: {len(cont)}")
+        
         sc = self._create_score_function(tetrad_data, cats, cont)
+        print(f"[DEBUG FGES] Using score type: {getattr(self, 'last_score_type', 'Unknown')}")
+        
         graph_out = self._run_fges(sc, knowledge)
+        
+        # Count edges before DAG conversion
+        edge_count_before = sum(1 for _ in graph_out.getEdges())
+        print(f"[DEBUG FGES] Graph before DAG conversion: {edge_count_before} edges")
+        
         # FGES typically returns a CPDAG; optionally orient to a DAG
         if self.orient_cpdag_to_dag:
             try:
                 # Static method call in Tetrad
                 dag = self.graph.GraphTransforms.dagFromCpdag(graph_out)
-            except Exception:
+                edge_count_after = sum(1 for _ in dag.getEdges())
+                print(f"[DEBUG FGES] Graph after DAG conversion: {edge_count_after} edges")
+            except Exception as e:
+                print(f"[DEBUG FGES] DAG conversion failed: {e}, using original graph")
                 dag = graph_out  # fallback
         else:
             dag = graph_out
-        return self._dag_to_adjacency_matrix(dag, columns)
+        
+        adj_matrix = self._dag_to_adjacency_matrix(dag, columns)
+        print(f"[DEBUG FGES] Final adjacency matrix: {int(np.sum(adj_matrix))} edges")
+        return adj_matrix
 
     def get_parameters(self) -> Dict[str, Any]:
         return {

@@ -47,6 +47,25 @@ See `inference_pipeline/PRIOR_KNOWLEDGE_README.md` for detailed documentation.
 - Top-level tests: sanity checks and integration tests for the pipeline and algorithms
 
 ### Getting Started
+
+#### Quick Start: CSuite Workflow
+
+For CSuite dataset experiments, see **[CSuite_WORKFLOW.md](CSuite_WORKFLOW.md)** for the complete guide.
+
+**Quick commands:**
+```bash
+# Use the unified orchestrator
+python run_csuite_pipeline.py generate    # Step 1: Generate datasets
+python run_csuite_pipeline.py run         # Step 2: Run experiments
+python run_csuite_pipeline.py analyze     # Step 3: Analyze results
+python run_csuite_pipeline.py all         # Run full pipeline
+
+# Or check current status
+python run_csuite_pipeline.py status
+```
+
+#### Detailed Setup
+
 1) Environment
 ```bash
 python -m venv .venv
