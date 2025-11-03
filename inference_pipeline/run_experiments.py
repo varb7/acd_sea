@@ -124,9 +124,15 @@ def run_on_dataset(dataset_dir: Path, registry: AlgorithmRegistry, use_prior: bo
                 prior = format_prior_knowledge_for_algorithm(meta, algo)
             except Exception:
                 prior = None
-        res = registry.run_algorithm(algo, df.values, cols,
-                                     use_prior_knowledge=use_prior,
-                                     prior_knowledge=prior)
+        try:
+            res = registry.run_algorithm(algo, df.values, cols,
+                                         use_prior_knowledge=use_prior,
+                                         prior_knowledge=prior)
+        except Exception as e:
+            print(f"[ERROR] Algorithm {algo} failed on {dataset_dir.name}: {e}")
+            import traceback
+            traceback.print_exc()
+            res = None
         if res is None:
             metrics = {'shd': None, 'normalized_shd': 0.0, 'f1_score': 0.0, 'precision': 0.0, 'recall': 0.0, 'pred_edge_count': 0}
             exec_t = 0.0

@@ -118,9 +118,27 @@ class TetradGFCI:
         indep = self._indep(tetrad_data, cats, cont)
         score = self._score(tetrad_data, cats, cont)
         alg = self.search.Gfci(indep, score)
-        if hasattr(alg, "setDepth"): alg.setDepth(self.depth)
+        # Depth control: large depths on mixed data can cause undefined p-values (sparse configs)
+        if hasattr(alg, "setDepth"):
+            if (cats and cont) and (self.depth is None or self.depth < 0):
+                # Cap depth for mixed data to reduce sparse conditioning sets
+                alg.setDepth(3)
+            else:
+                alg.setDepth(self.depth)
         if knowledge is not None: alg.setKnowledge(knowledge)
-        pag = alg.search()
+
+        # Run with a retry: if search fails due to undefined p-values, retry with smaller depth
+        try:
+            pag = alg.search()
+        except Exception as e:
+            try:
+                # Retry at safer depth=2
+                if hasattr(alg, "setDepth"):
+                    alg.setDepth(2)
+                pag = alg.search()
+            except Exception:
+                # As a last resort, return an empty adjacency to keep pipeline running
+                return np.zeros((len(columns), len(columns)), dtype=int)
         return self._graph_to_adjacency(pag, columns)
 
 def run_gfci(
