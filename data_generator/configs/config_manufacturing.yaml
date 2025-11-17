@@ -1,7 +1,7 @@
-total_datasets: 200
+total_datasets: 10
 output_dir: "manufacturing_datasets"
 log_level: "INFO"
-random_seed: 42
+random_seed: 4
 validate_config: true
 
 graph_structure:

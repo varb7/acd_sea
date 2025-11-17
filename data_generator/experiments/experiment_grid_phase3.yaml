@@ -1,0 +1,90 @@
+# Experiment grid for CSuite data generation (Phase 3)
+# Focus: Variations in noise parameters and root node distributions
+# Uses SCDG capabilities for noise and distribution types
+
+# Output location for generated datasets and index.csv
+output_dir: csuite_grid_datasets_phase3
+train_ratio: 0.8
+num_stations: 3
+
+phase3:
+  # Focus on a subset of patterns and sizes for Phase 3
+  sizes: [3, 5, 8, 10]
+  patterns: [chain, collider, backdoor, weak_arrow, large_backdoor]
+  samples: [500,1000,2000]
+  seeds: 3
+  var_types: [continuous]  # Focus on continuous for Phase 3
+  
+  # Root distribution variations
+  root_distributions:
+    - type: normal
+      params:
+        mean: 0.0
+        std: 1.0
+    - type: normal
+      params:
+        mean: 0.0
+        std: 2.0
+    - type: normal
+      params:
+        mean: 5.0
+        std: 1.0
+    - type: uniform
+      params:
+        low: -5.0
+        high: 5.0
+    - type: uniform
+      params:
+        low: 0.0
+        high: 10.0
+    - type: exponential
+      params:
+        scale: 1.0
+    - type: exponential
+      params:
+        scale: 2.0
+    - type: beta
+      params:
+        a: 2.0
+        b: 2.0
+    - type: beta
+      params:
+        a: 0.5
+        b: 0.5
+  
+  # Noise parameter variations
+  noise_configs:
+    - type: normal
+      params:
+        mean: 0.0
+        std: 0.5
+    - type: normal
+      params:
+        mean: 0.0
+        std: 1.0
+    - type: normal
+      params:
+        mean: 0.0
+        std: 2.0
+    - type: uniform
+      params:
+        low: -1.0
+        high: 1.0
+    - type: uniform
+      params:
+        low: -2.0
+        high: 2.0
+    - type: exponential
+      params:
+        scale: 0.5
+    - type: exponential
+      params:
+        scale: 1.0
+    - type: beta
+      params:
+        a: 2.0
+        b: 5.0
+  
+  # Equation types (keep it simple for Phase 3)
+  equation_types: [linear, non_linear]
+

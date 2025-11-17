@@ -20,7 +20,8 @@ def load_config(config_path: str = None) -> Dict[str, Any]:
     """
     if config_path and Path(config_path).exists():
         with open(config_path, 'r') as f:
-            return yaml.safe_load(f)
+            raw_config = yaml.safe_load(f)
+        return _normalize_config(raw_config)
     
     # Return default configuration
     return {
@@ -52,6 +53,75 @@ def load_config(config_path: str = None) -> Dict[str, Any]:
         'save_train_test_split': True,
         'train_ratio': 0.8
     }
+
+
+def _normalize_config(raw: Dict[str, Any] | None) -> Dict[str, Any]:
+    """
+    Translate structured configs into the flat schema expected by the generator
+    while preserving the original keys when possible.
+    """
+    if not raw:
+        return {}
+
+    config = dict(raw)
+
+    if "total_datasets" in raw and "num_datasets" not in config:
+        config["num_datasets"] = raw["total_datasets"]
+    if "random_seed" in raw and "seed" not in config:
+        config["seed"] = raw["random_seed"]
+
+    graph = raw.get("graph_structure", {})
+    if "nodes_range" not in config:
+        config["nodes_range"] = graph.get("num_nodes_range", config.get("nodes_range"))
+    if "root_percentage_range" not in config:
+        config["root_percentage_range"] = graph.get("root_nodes_percentage_range", config.get("root_percentage_range"))
+    if "edge_density_range" not in config:
+        config["edge_density_range"] = graph.get("edges_density_range", config.get("edge_density_range"))
+
+    data_generation = raw.get("data_generation", {})
+    if "samples_range" not in config:
+        config["samples_range"] = data_generation.get("num_samples_range", config.get("samples_range"))
+    if "num_samples" not in config and "default_num_samples" in data_generation:
+        config["num_samples"] = data_generation["default_num_samples"]
+
+    manufacturing = raw.get("manufacturing", {})
+    if "categorical_percentage" not in config:
+        config["categorical_percentage"] = manufacturing.get("categorical_percentage", config.get("categorical_percentage"))
+    if "continuous_distributions" not in config:
+        config["continuous_distributions"] = manufacturing.get("continuous_distributions", config.get("continuous_distributions"))
+    if "categorical_distributions" not in config:
+        config["categorical_distributions"] = manufacturing.get("categorical_distributions", config.get("categorical_distributions"))
+    if "noise_level" not in config:
+        config["noise_level"] = manufacturing.get("noise_level", config.get("noise_level"))
+    if "noise_type" not in config and "noise_type" in manufacturing:
+        config["noise_type"] = manufacturing["noise_type"]
+    if "noise_params" not in config and "noise_params" in manufacturing:
+        config["noise_params"] = manufacturing["noise_params"]
+
+    if "generation_ranges" not in config and "generation_ranges" in raw:
+        config["generation_ranges"] = raw["generation_ranges"]
+
+    output = raw.get("output", {})
+    if "output_dir" not in config and "output_dir" in output:
+        config["output_dir"] = output["output_dir"]
+    if "save_metadata" not in config and "save_metadata" in output:
+        config["save_metadata"] = output["save_metadata"]
+    if "save_graphs" not in config and "save_graphs" in output:
+        config["save_graphs"] = output["save_graphs"]
+    if "save_adjacency_matrices" not in config and "save_adjacency_matrices" in output:
+        config["save_adjacency_matrices"] = output["save_adjacency_matrices"]
+    if "metadata_format" not in config and "metadata_format" in output:
+        config["metadata_format"] = output["metadata_format"]
+    if "graph_format" not in config and "graph_format" in output:
+        config["graph_format"] = output["graph_format"]
+    if "adjacency_format" not in config and "adjacency_format" in output:
+        config["adjacency_format"] = output["adjacency_format"]
+
+    strategy = raw.get("strategy")
+    if strategy is not None and "strategy" not in config:
+        config["strategy"] = strategy
+
+    return config
 
 
 def save_config_template(output_path: str, config: Dict[str, Any] = None) -> None:

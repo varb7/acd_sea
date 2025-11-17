@@ -173,21 +173,101 @@ def run_phase2(cfg: Dict):
                             save_one_dataset(df, metadata, G, out_dir, base, index_file, train_ratio)
 
 
+def run_phase3(cfg: Dict):
+    """Phase 3: Variations in noise parameters and root node distributions."""
+    out_dir = Path(cfg['output_dir'])
+    out_dir.mkdir(parents=True, exist_ok=True)
+    index_file = out_dir / 'index.csv'
+    train_ratio = float(cfg.get('train_ratio', 0.8))
+    num_stations = int(cfg.get('num_stations', 3))
+
+    p3 = cfg['phase3']
+    sizes = p3['sizes']
+    patterns = p3['patterns']
+    samples_list = p3['samples']
+    seeds = int(p3['seeds']) if isinstance(p3['seeds'], int) else int(p3['seeds'])
+    var_types = p3.get('var_types', ['continuous'])
+    equation_types = p3.get('equation_types', ['linear', 'non_linear'])
+    root_distributions = p3.get('root_distributions', [])
+    noise_configs = p3.get('noise_configs', [])
+
+    for n in sizes:
+        for pattern in valid_patterns_for_n(int(n), patterns):
+            for eq_type in equation_types:
+                for vt in var_types:
+                    vt_cfg = build_var_type_config(vt, cfg.get('phase2', {}).get('mixed_config', {}))
+                    for root_dist in root_distributions:
+                        for noise_cfg in noise_configs:
+                            for num_samples in samples_list:
+                                for seed in range(seeds):
+                                    gen_cfg = {
+                                        'pattern': pattern,
+                                        'num_nodes': int(n),
+                                        'num_samples': int(num_samples),
+                                        'seed': int(cfg.get('seed', 42)) + seed,
+                                        'num_stations': num_stations,
+                                        'equation_type': eq_type,
+                                        'root_distribution_type': root_dist['type'],
+                                        'root_distribution_params': root_dist.get('params', {}),
+                                        'default_noise_type': noise_cfg['type'],
+                                        'default_noise_params': noise_cfg.get('params', {}),
+                                        **vt_cfg,
+                                    }
+                                    
+                                    df, metadata, G = generate_csuite2_dataset(gen_cfg)
+
+                                    # augment metadata with Phase 3 specific information
+                                    metadata = {**metadata,
+                                                'seed': gen_cfg['seed'],
+                                                'equation_type_override': eq_type,
+                                                'var_type_tag': vt,
+                                                'root_categorical': vt_cfg['root_categorical'],
+                                                'nonroot_categorical_pct': vt_cfg['nonroot_categorical_pct'],
+                                                'root_distribution_type': root_dist['type'],
+                                                'root_distribution_params': str(root_dist.get('params', {})),
+                                                'noise_type': noise_cfg['type'],
+                                                'noise_params': str(noise_cfg.get('params', {}))}
+
+                                    # Create descriptive base name
+                                    root_dist_tag = f"{root_dist['type']}"
+                                    noise_tag = f"{noise_cfg['type']}"
+                                    base = f"csuite_{pattern}_{int(n)}n_p3_{eq_type}_{vt}_{root_dist_tag}_{noise_tag}_{int(num_samples)}_{gen_cfg['seed']:04d}"
+                                    save_one_dataset(df, metadata, G, out_dir, base, index_file, train_ratio)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Generate CSuite dataset grid from YAML config")
     parser.add_argument('-c', '--config', type=str, default=str(Path(__file__).with_name('experiment_grid.yaml')),
                         help='Path to experiment grid YAML')
     args = parser.parse_args()
 
-    with open(args.config, 'r') as f:
-        cfg = yaml.safe_load(f)
+    # Robust YAML load with BOM handling, error capture, and type validation
+    try:
+        # utf-8-sig strips BOM if present (common on Windows)
+        with open(args.config, 'r', encoding='utf-8-sig') as f:
+            text = f.read()
+        # First try safe_load
+        cfg = yaml.safe_load(text)
+        # If still None, try full_load as a fallback
+        if cfg is None:
+            cfg = yaml.full_load(text)
+        if cfg is None or not isinstance(cfg, dict):
+            details = f"parsed_type={type(cfg).__name__}, length={len(text)}"
+            raise ValueError(f"Invalid YAML content in {args.config}: {details}")
+    except yaml.YAMLError as e:
+        raise ValueError(f"YAML parsing error in {args.config}: {e}")
 
     # Seed baseline for reproducibility chain; individual seeds derived per dataset
     if 'seed' not in cfg:
         cfg['seed'] = 42
 
-    run_phase1(cfg)
-    run_phase2(cfg)
+    # Run phases conditionally based on what's in the config
+    if 'phase1' in cfg:
+        run_phase1(cfg)
+    if 'phase2' in cfg:
+        run_phase2(cfg)
+    if 'phase3' in cfg:
+        run_phase3(cfg)
 
     print("CSuite experiment grid generation complete.")
 
