@@ -15,7 +15,7 @@ import argparse
 import os
 import sys
 import pickle
-from typing import Dict, List
+from typing import Dict, List, Any
 
 import yaml
 import numpy as np
@@ -173,6 +173,89 @@ def run_phase2(cfg: Dict):
                             save_one_dataset(df, metadata, G, out_dir, base, index_file, train_ratio)
 
 
+def _sanitize_token(token: str) -> str:
+    return (
+        str(token)
+        .replace('.', 'p')
+        .replace('-', 'm')
+        .replace(' ', '')
+    )
+
+
+def _to_float(value: Any, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def describe_root_distribution(root_dist: Dict) -> str:
+    dtype = root_dist.get('type', 'unknown')
+    params = root_dist.get('params', {})
+    token = dtype
+
+    if dtype == 'normal':
+        std = _to_float(params.get('std', 1.0), 1.0)
+        mean = _to_float(params.get('mean', 0.0), 0.0)
+        var_level = 'low' if std <= 1.0 else 'high'
+        mean_level = 'pos' if mean > 0.5 else 'neg' if mean < -0.5 else 'zero'
+        token = f"{dtype}_{var_level}var_{mean_level}mean"
+    elif dtype == 'uniform':
+        low = _to_float(params.get('low', 0.0), 0.0)
+        high = _to_float(params.get('high', 1.0), 1.0)
+        span = abs(high - low)
+        span_level = 'low' if span <= 6 else 'high'
+        center = (high + low) / 2
+        center_level = 'pos' if center > 0.5 else 'neg' if center < -0.5 else 'zero'
+        token = f"{dtype}_{span_level}span_{center_level}center"
+    elif dtype == 'exponential':
+        scale = _to_float(params.get('scale', 1.0), 1.0)
+        scale_level = 'low' if scale <= 1.0 else 'high'
+        token = f"{dtype}_{scale_level}variance"
+    elif dtype == 'beta':
+        a = _to_float(params.get('a', 1.0), 1.0)
+        b = _to_float(params.get('b', 1.0), 1.0)
+        balance = 'balanced' if abs(a - b) <= 0.5 else ('left' if a > b else 'right')
+        spread = 'low' if a + b >= 4 else 'high'
+        token = f"{dtype}_{balance}_{spread}var"
+    else:
+        extra = "_".join(f"{k}{_sanitize_token(v)}" for k, v in sorted(params.items()))
+        token = f"{dtype}_{extra}" if extra else dtype
+
+    return _sanitize_token(token)
+
+
+def describe_noise_config(noise_cfg: Dict) -> str:
+    dtype = noise_cfg.get('type', 'unknown')
+    params = noise_cfg.get('params', {})
+    token = dtype
+
+    if dtype == 'normal':
+        std = _to_float(params.get('std', 1.0), 1.0)
+        level = 'low' if std <= 1.0 else 'high'
+        token = f"{dtype}_{level}noise"
+    elif dtype == 'uniform':
+        low = _to_float(params.get('low', -1.0), -1.0)
+        high = _to_float(params.get('high', 1.0), 1.0)
+        span = abs(high - low)
+        level = 'low' if span <= 2 else 'high'
+        token = f"{dtype}_{level}noise"
+    elif dtype == 'exponential':
+        scale = _to_float(params.get('scale', 1.0), 1.0)
+        level = 'low' if scale <= 1.0 else 'high'
+        token = f"{dtype}_{level}noise"
+    elif dtype == 'beta':
+        a = _to_float(params.get('a', 1.0), 1.0)
+        b = _to_float(params.get('b', 1.0), 1.0)
+        level = 'low' if (a + b) >= 7 else 'high'
+        token = f"{dtype}_{level}noise"
+    else:
+        extra = "_".join(f"{k}{_sanitize_token(v)}" for k, v in sorted(params.items()))
+        token = f"{dtype}_{extra}" if extra else dtype
+
+    return _sanitize_token(token)
+
+
 def run_phase3(cfg: Dict):
     """Phase 3: Variations in noise parameters and root node distributions."""
     out_dir = Path(cfg['output_dir'])
@@ -229,8 +312,8 @@ def run_phase3(cfg: Dict):
                                                 'noise_params': str(noise_cfg.get('params', {}))}
 
                                     # Create descriptive base name
-                                    root_dist_tag = f"{root_dist['type']}"
-                                    noise_tag = f"{noise_cfg['type']}"
+                                    root_dist_tag = describe_root_distribution(root_dist)
+                                    noise_tag = describe_noise_config(noise_cfg)
                                     base = f"csuite_{pattern}_{int(n)}n_p3_{eq_type}_{vt}_{root_dist_tag}_{noise_tag}_{int(num_samples)}_{gen_cfg['seed']:04d}"
                                     save_one_dataset(df, metadata, G, out_dir, base, index_file, train_ratio)
 
