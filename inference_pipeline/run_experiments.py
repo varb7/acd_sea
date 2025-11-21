@@ -31,6 +31,70 @@ except ImportError:
     from inference_pipeline.utils.prior_knowledge import format_prior_knowledge_for_algorithm
 
 
+def _normalize_columns(columns: List[str]) -> List[str]:
+    """Ensure all column names are python strings (strip np.str_)."""
+    return [str(col) for col in columns]
+
+
+def _compute_root_nodes_from_adj(adj_matrix: np.ndarray, columns: List[str]) -> List[str]:
+    """
+    Derive root nodes (zero indegree) directly from the adjacency matrix.
+
+    Args:
+        adj_matrix: Square numpy array representing the true DAG (shape n x n).
+                   Rows = source nodes, Columns = target nodes.
+                   Column j has non-zero entries if node j has incoming edges.
+        columns: Column names aligned with adj_matrix ordering (must match temporal_order
+                 used when saving the adjacency matrix).
+
+    Returns:
+        List of node names that have no incoming edges (all zeros in their column).
+    """
+    if adj_matrix.ndim != 2 or adj_matrix.shape[0] != adj_matrix.shape[1]:
+        raise ValueError(f"Adjacency matrix must be square, got shape {adj_matrix.shape}")
+    if adj_matrix.shape[0] != len(columns):
+        raise ValueError(f"Adjacency matrix dimension ({adj_matrix.shape[0]}) and "
+                        f"column list length ({len(columns)}) differ")
+
+    # Check each column: if all entries are zero, that node has no incoming edges (is a root)
+    # axis=0 means check down each column
+    incoming = np.any(adj_matrix != 0, axis=0)
+    root_indices = [i for i, has_parent in enumerate(incoming) if not has_parent]
+    return [columns[i] for i in root_indices]
+
+
+def _sync_root_nodes_with_graph(meta: Dict, adj_matrix: np.ndarray, columns: List[str], dataset_label: str) -> Dict:
+    """
+    Ensure metadata root_nodes matches what the adjacency implies.
+
+    If metadata differs, store the original list for debugging and overwrite with the
+    recomputed roots so downstream prior knowledge remains consistent.
+    
+    This fixes the issue where pattern templates (collider, backdoor, large_backdoor)
+    incorrectly list non-root nodes as roots in the metadata.
+    """
+    # Normalize stored roots to plain strings (handle np.str_ objects)
+    stored_roots_raw = meta.get('root_nodes', [])
+    stored_roots = [str(n).strip() for n in stored_roots_raw]
+    
+    # Compute true roots from adjacency matrix
+    computed_roots = _compute_root_nodes_from_adj(adj_matrix, columns)
+    
+    # Normalize computed roots for comparison
+    stored_set = set(stored_roots)
+    computed_set = set(computed_roots)
+    
+    if stored_set != computed_set:
+        print(f"[WARN] Root metadata mismatch for {dataset_label}: "
+              f"stored={stored_roots}, recomputed={computed_roots}")
+        # Create a new dict to avoid mutating cached pickle objects
+        meta = dict(meta)
+        meta['_root_nodes_original'] = stored_roots_raw  # Keep original for debugging
+        meta['root_nodes'] = computed_roots  # Overwrite with correct roots
+        print(f"[FIX] Updated root_nodes to {computed_roots}")
+    return meta
+
+
 def _resolve_dataset_dir(index_fp: Path, rel_or_abs_graph_path: str) -> Path:
     """
     Resolve a dataset directory given an index file path and the fp_graph value.
@@ -95,9 +159,16 @@ def run_on_dataset(dataset_dir: Path, registry: AlgorithmRegistry, use_prior: bo
     meta = load_metadata(dataset_dir)
 
     data = np.load(data_fp)
-    cols = list(meta.get('temporal_order', [f'v{i}' for i in range(data.shape[1])]))
+    cols = _normalize_columns(meta.get('temporal_order', [f'v{i}' for i in range(data.shape[1])]))
     df = pd.DataFrame(data, columns=cols)
     true_adj = np.load(graph_fp)
+    
+    # Fix root_nodes to match actual graph structure (critical for prior knowledge)
+    meta = _sync_root_nodes_with_graph(meta, true_adj, cols, dataset_dir.name)
+    
+    # Also normalize temporal_order in metadata to ensure consistency (handle np.str_ objects)
+    if 'temporal_order' in meta and meta['temporal_order']:
+        meta['temporal_order'] = _normalize_columns(meta['temporal_order'])
     max_edges = true_adj.size
 
     # Log high-level dataset info once

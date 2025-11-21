@@ -145,11 +145,13 @@ def build_graph_from_pattern(pattern: str, num_nodes: int) -> Tuple[nx.DiGraph, 
     for u, v in map_edges(pat_cfg["edges"]):
         G.add_edge(u, v)
 
+    computed_roots = [node for node in G.nodes if G.in_degree(node) == 0]
+
     metadata = {
         "pattern": pattern,
         "num_nodes": num_nodes,
         "num_edges": len(pat_cfg["edges"]),
-        "root_nodes": map_nodes(pat_cfg["root_nodes"]),
+        "root_nodes": computed_roots,
         "leaf_nodes": map_nodes(pat_cfg["leaf_nodes"]),
         "equation_type": pat_cfg["equation_type"],
         "variable_types": {idx_to_name(k): v for k, v in pat_cfg["variable_types"].items()},

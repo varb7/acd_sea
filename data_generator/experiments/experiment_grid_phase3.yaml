@@ -9,11 +9,16 @@ num_stations: 3
 
 phase3:
   # Focus on a subset of patterns and sizes for Phase 3
-  sizes: [3, 5, 8, 10]
+  sizes: [5]
   patterns: [chain, collider, backdoor, weak_arrow, large_backdoor]
-  samples: [500,1000,2000]
-  seeds: 3
-  var_types: [continuous]  # Focus on continuous for Phase 3
+  samples: [500]
+  seeds: 1
+  var_types: [mixed]
+  mixed_config:
+    root_categorical: true
+    root_num_classes: 3
+    nonroot_categorical_pct: 0.3
+    nonroot_categorical_num_classes: 3
   
   # Root distribution variations
   root_distributions:
@@ -84,7 +89,8 @@ phase3:
       params:
         a: 2.0
         b: 5.0
-  
+
   # Equation types (keep it simple for Phase 3)
   equation_types: [linear, non_linear]
 
+   
