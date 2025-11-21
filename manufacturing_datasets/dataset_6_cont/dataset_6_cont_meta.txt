@@ -1,9 +1,0 @@
-temporal_order: ['a', 'c', 'b', 'd', 'e', 'f', 'g', 'h', 'j', 'i', 'l', 'k', 'm']
-station_blocks: [['a', 'c', 'b', 'd', 'e'], ['f', 'g', 'h', 'j', 'i', 'l', 'k', 'm']]
-station_names: ['Station1', 'Station2']
-station_map: {'a': 'Station1', 'c': 'Station1', 'b': 'Station1', 'd': 'Station1', 'e': 'Station1', 'f': 'Station2', 'g': 'Station2', 'h': 'Station2', 'j': 'Station2', 'i': 'Station2', 'l': 'Station2', 'k': 'Station2', 'm': 'Station2'}
-num_nodes: 13
-edges: 56
-equation_type: linear
-root_percentage: 23.076923076923077
-categorical_root_percentage: 0.0

@@ -1,9 +1,0 @@
-temporal_order: ['a', 'b', 'c', 'd']
-station_blocks: [['a', 'b'], ['c', 'd']]
-station_names: ['Station1', 'Station2']
-station_map: {'a': 'Station1', 'b': 'Station1', 'c': 'Station2', 'd': 'Station2'}
-num_nodes: 4
-edges: 4
-equation_type: linear
-root_percentage: 25.0
-categorical_root_percentage: 0.0

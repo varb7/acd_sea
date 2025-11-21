@@ -30,3 +30,6 @@ manufacturing_datasets/
 *.rar
 *.zip
 
+# New Structure
+data/
+results/

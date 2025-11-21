@@ -1,0 +1,17 @@
+pattern: collider
+num_nodes: 10
+num_edges: 9
+root_nodes: ['a', 'c']
+leaf_nodes: ['d', 'e', 'f', 'g', 'h', 'i', 'j']
+equation_type: linear
+variable_types: {'a': 'continuous', 'b': 'continuous', 'c': 'continuous', 'd': 'continuous', 'e': 'continuous', 'f': 'continuous', 'g': 'continuous', 'h': 'continuous', 'i': 'continuous', 'j': 'continuous'}
+temporal_order: [np.str_('a'), np.str_('c'), np.str_('b'), np.str_('d'), np.str_('e'), np.str_('f'), np.str_('g'), np.str_('h'), np.str_('i'), np.str_('j')]
+station_blocks: [[np.str_('a'), np.str_('c'), np.str_('b'), np.str_('d')], [np.str_('e'), np.str_('f'), np.str_('g')], [np.str_('h'), np.str_('i'), np.str_('j')]]
+station_names: ['Station1', 'Station2', 'Station3']
+station_map: {np.str_('a'): 'Station1', np.str_('c'): 'Station1', np.str_('b'): 'Station1', np.str_('d'): 'Station1', np.str_('e'): 'Station2', np.str_('f'): 'Station2', np.str_('g'): 'Station2', np.str_('h'): 'Station3', np.str_('i'): 'Station3', np.str_('j'): 'Station3'}
+seed: 43
+num_samples: 1000
+equation_type_override: linear
+var_type_tag: mixed
+root_categorical: True
+nonroot_categorical_pct: 0.3

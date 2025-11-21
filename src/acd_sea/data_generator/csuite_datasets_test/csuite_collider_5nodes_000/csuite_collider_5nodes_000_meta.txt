@@ -1,0 +1,13 @@
+pattern: collider
+num_nodes: 5
+num_edges: 4
+root_nodes: ['a', 'c', 'd', 'e']
+leaf_nodes: ['d', 'e']
+equation_type: linear
+variable_types: {'a': 'continuous', 'b': 'continuous', 'c': 'continuous', 'd': 'continuous', 'e': 'continuous'}
+temporal_order: ['a', 'c', 'b', 'd', 'e']
+station_blocks: [['a', 'c'], ['b', 'd'], ['e']]
+station_names: ['Station1', 'Station2', 'Station3']
+station_map: {'a': 'Station1', 'c': 'Station1', 'b': 'Station2', 'd': 'Station2', 'e': 'Station3'}
+seed: 42
+num_samples: 1000
