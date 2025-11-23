@@ -5,6 +5,7 @@ from .utils.metrics_utils import compute_data_properties
 from .utils.algorithms import AlgorithmRegistry, compute_metrics, default_metrics
 from .utils.graph_utils import build_true_graph
 from .utils.prior_knowledge import format_prior_knowledge_for_algorithm, log_prior_knowledge_summary
+from .utils.metadata_processing import enrich_metadata
 import networkx as  nx
 from typing import List
 import mlflow
@@ -59,7 +60,7 @@ def main(use_prior_knowledge=False, algorithms=None):
         print(f"Processing dataset {i+1}/{len(datasets)}")
         data = dataset['data']
         adj = dataset['true_adj_matrix']
-        metadata = dataset['metadata']
+        metadata = enrich_metadata(dataset['metadata'])
 
         props = compute_data_properties(data, adj)
 

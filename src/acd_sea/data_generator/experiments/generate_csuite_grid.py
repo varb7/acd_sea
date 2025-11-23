@@ -273,10 +273,12 @@ def run_phase3(cfg: Dict):
     equation_types = p3.get('equation_types', ['linear', 'non_linear'])
     root_distributions = p3.get('root_distributions', [])
     noise_configs = p3.get('noise_configs', [])
+    edge_densities = p3.get('edge_densities', [0.5])
 
     for n in sizes:
         for pattern in valid_patterns_for_n(int(n), patterns):
-            for eq_type in equation_types:
+            for density in edge_densities:
+                for eq_type in equation_types:
                 for vt in var_types:
                     vt_cfg = build_var_type_config(vt, cfg.get('phase2', {}).get('mixed_config', {}))
                     for root_dist in root_distributions:
@@ -294,6 +296,7 @@ def run_phase3(cfg: Dict):
                                         'root_distribution_params': root_dist.get('params', {}),
                                         'default_noise_type': noise_cfg['type'],
                                         'default_noise_params': noise_cfg.get('params', {}),
+                                        'edge_density': density,
                                         **vt_cfg,
                                     }
                                     
@@ -314,7 +317,8 @@ def run_phase3(cfg: Dict):
                                     # Create descriptive base name
                                     root_dist_tag = describe_root_distribution(root_dist)
                                     noise_tag = describe_noise_config(noise_cfg)
-                                    base = f"csuite_{pattern}_{int(n)}n_p3_{eq_type}_{vt}_{root_dist_tag}_{noise_tag}_{int(num_samples)}_{gen_cfg['seed']:04d}"
+                                    density_tag = f"_d{int(density*100)}" if pattern == 'random_dag' else ""
+                                    base = f"csuite_{pattern}_{int(n)}n_p3{density_tag}_{eq_type}_{vt}_{root_dist_tag}_{noise_tag}_{int(num_samples)}_{gen_cfg['seed']:04d}"
                                     save_one_dataset(df, metadata, G, out_dir, base, index_file, train_ratio)
 
 

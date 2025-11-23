@@ -127,17 +127,81 @@ PATTERN_BUILDERS = {
     "mixed_confounding": pattern_mixed_confounding,
     "weak_arrow": pattern_weak_arrow,
     "large_backdoor": pattern_large_backdoor,
+    "random_dag": None,  # Special handling in build_graph_from_pattern
 }
 
 
+def max_edges_dag(num_nodes: int, num_roots: int) -> int:
+    """Calculate maximum edges for a DAG with given nodes and roots."""
+    N, R = num_nodes, num_roots
+    if R < 0 or R >= N:
+        raise ValueError("Need 0 ≤ R < N")
+    return (N * (N - 1) - R * (R - 1)) // 2
+
+
+def pattern_random_dag(n: int, density: float, seed: int) -> Dict:
+    """
+    Generate a random DAG with a specific edge density.
+    Uses CausalDataGenerator's logic but adapted for the pattern interface.
+    """
+    rng = np.random.default_rng(seed)
+    
+    # Determine number of roots (20-40% of nodes, similar to simple_config)
+    # Ensure at least 1 root and at most n-1
+    min_roots = max(1, int(n * 0.2))
+    max_roots = min(n - 1, max(min_roots, int(n * 0.4)))
+    num_roots = rng.integers(min_roots, max_roots + 1) if max_roots >= min_roots else 1
+    
+    # Calculate edges based on density
+    min_edges = num_roots + (n - num_roots - 1)
+    max_edges = max_edges_dag(n, num_roots)
+    
+    # Target edges
+    target_edges = int(density * max_edges)
+    num_edges = max(min_edges, min(target_edges, max_edges))
+    
+    # Use SCDG to generate the graph structure
+    # We create a temporary CDG just to get the graph
+    cdg = CausalDataGenerator(num_samples=10, seed=seed)
+    G, roots = cdg.generate_random_graph(n, num_roots, num_edges)
+    
+    # Map G's nodes to 0..n-1
+    # We assume G has n nodes. We need a consistent mapping.
+    sorted_nodes = sorted(list(G.nodes()))
+    node_to_idx = {node: i for i, node in enumerate(sorted_nodes)}
+    
+    # Convert edges to indices
+    edges = [(node_to_idx[u], node_to_idx[v]) for u, v in G.edges()]
+    
+    # Roots are already in 'roots' set (subset of G.nodes())
+    # We need to return them as indices
+    root_nodes = sorted([node_to_idx[r] for r in roots])
+    
+    # Leaf nodes
+    leaf_nodes = sorted([node_to_idx[node] for node in G.nodes() if G.out_degree(node) == 0])
+    
+    return {
+        "edges": edges,
+        "root_nodes": root_nodes,
+        "leaf_nodes": leaf_nodes,
+        "equation_type": "linear", # Default, can be overridden
+        "variable_types": {i: "continuous" for i in range(n)},
+    }
+
+
 # -------------------------- Graph + SCDG pipeline --------------------------
-def build_graph_from_pattern(pattern: str, num_nodes: int) -> Tuple[nx.DiGraph, Dict]:
+def build_graph_from_pattern(pattern: str, num_nodes: int, **kwargs) -> Tuple[nx.DiGraph, Dict]:
     if num_nodes < 2 or num_nodes > 10:
         raise ValueError("num_nodes must be between 2 and 10 for CSuite v2")
     if pattern not in PATTERN_BUILDERS:
         raise ValueError(f"Unknown pattern: {pattern}")
 
-    pat_cfg = PATTERN_BUILDERS[pattern](num_nodes)
+    if pattern == 'random_dag':
+        density = kwargs.get('edge_density', 0.5)
+        seed = kwargs.get('seed', 42)
+        pat_cfg = pattern_random_dag(num_nodes, density, seed)
+    else:
+        pat_cfg = PATTERN_BUILDERS[pattern](num_nodes)
 
     G = nx.DiGraph()
     for i in range(num_nodes):
@@ -239,8 +303,9 @@ def generate_csuite2_dataset(config: Dict) -> Tuple[pd.DataFrame, Dict, nx.DiGra
     num_samples = int(config.get("num_samples", 1000))
     seed = int(config.get("seed", 42))
     num_stations = int(config.get("num_stations", 3))
+    edge_density = float(config.get("edge_density", 0.5))
 
-    G, meta = build_graph_from_pattern(pattern, num_nodes)
+    G, meta = build_graph_from_pattern(pattern, num_nodes, edge_density=edge_density, seed=seed)
 
     # Allow overriding equation type
     equation_type = str(config.get("equation_type", meta["equation_type"]))
@@ -273,7 +338,7 @@ def generate_csuite2_dataset(config: Dict) -> Tuple[pd.DataFrame, Dict, nx.DiGra
     st = assign_simple_stations(G, num_stations=num_stations)
     df = df[st["temporal_order"]]
 
-    metadata = {**meta, **st, "seed": seed, "num_samples": num_samples}
+    metadata = {**meta, **st, "seed": seed, "num_samples": num_samples, "edge_density": config.get("edge_density", "N/A")}
     return df, metadata, G
 
 

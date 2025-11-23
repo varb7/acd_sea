@@ -10,7 +10,8 @@ num_stations: 3
 phase3:
   # Focus on a subset of patterns and sizes for Phase 3
   sizes: [5]
-  patterns: [chain, collider, backdoor, weak_arrow, large_backdoor]
+  patterns: [random_dag]
+  edge_densities: [0.2, 0.5, 0.8]
   samples: [500]
   seeds: 1
   var_types: [mixed]
