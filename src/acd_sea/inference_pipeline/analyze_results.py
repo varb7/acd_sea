@@ -13,14 +13,14 @@ def load_results(results_file: str) -> pd.DataFrame:
 
 def analyze_algorithm_performance(df: pd.DataFrame) -> pd.DataFrame:
     """Compute performance metrics per algorithm."""
-    metrics_cols = ['f1_score', 'precision', 'recall', 'shd', 'unified_score']
+    metrics_cols = ['f1_score', 'precision', 'recall', 'shd', 'normalized_shd']
     
-    summary = df.groupby(['algorithm', 'use_prior_knowledge']).agg({
+    summary = df.groupby(['algorithm', 'use_prior']).agg({
         'f1_score': ['mean', 'std'],
         'precision': ['mean', 'std'],
         'recall': ['mean', 'std'],
         'shd': ['mean', 'std'],
-        'unified_score': ['mean', 'std'],
+        'normalized_shd': ['mean', 'std'],
         'execution_time': 'mean'
     }).round(3)
     
@@ -33,9 +33,9 @@ def compare_with_without_prior(df: pd.DataFrame) -> pd.DataFrame:
     for algo in df['algorithm'].unique():
         algo_data = df[df['algorithm'] == algo]
         
-        if 'use_prior_knowledge' in algo_data.columns:
-            with_prior = algo_data[algo_data['use_prior_knowledge'] == True]
-            without_prior = algo_data[algo_data['use_prior_knowledge'] == False]
+        if 'use_prior' in algo_data.columns:
+            with_prior = algo_data[algo_data['use_prior'] == True]
+            without_prior = algo_data[algo_data['use_prior'] == False]
             
             if len(with_prior) > 0 and len(without_prior) > 0:
                 comparison.append({
@@ -72,7 +72,7 @@ def analyze_by_dataset_characteristics(df: pd.DataFrame) -> pd.DataFrame:
     
     # Correlate metrics with dataset properties
     numeric_cols = df.select_dtypes(include=[np.number]).columns
-    metric_cols = ['f1_score', 'precision', 'recall', 'unified_score']
+    metric_cols = ['f1_score', 'precision', 'recall', 'normalized_shd']
     
     correlations = []
     for metric in metric_cols:
@@ -87,6 +87,110 @@ def analyze_by_dataset_characteristics(df: pd.DataFrame) -> pd.DataFrame:
                     })
     
     return pd.DataFrame(correlations).round(3)
+
+def analyze_by_pattern(df: pd.DataFrame) -> pd.DataFrame:
+    """Analyze performance by causal structure pattern."""
+    if 'pattern' not in df.columns:
+        return pd.DataFrame()
+    
+    summary = df.groupby('pattern').agg({
+        'f1_score': ['mean', 'std', 'count'],
+        'precision': ['mean', 'std'],
+        'recall': ['mean', 'std'],
+        'shd': ['mean', 'std'],
+        'normalized_shd': ['mean', 'std']
+    }).round(3)
+    
+    return summary
+
+def analyze_by_var_type(df: pd.DataFrame) -> pd.DataFrame:
+    """Analyze performance by variable type (continuous vs mixed)."""
+    if 'var_type_tag' not in df.columns:
+        return pd.DataFrame()
+    
+    summary = df.groupby('var_type_tag').agg({
+        'f1_score': ['mean', 'std', 'count'],
+        'precision': ['mean', 'std'],
+        'recall': ['mean', 'std'],
+        'shd': ['mean', 'std'],
+        'normalized_shd': ['mean', 'std']
+    }).round(3)
+    
+    return summary
+
+def analyze_by_equation_type(df: pd.DataFrame) -> pd.DataFrame:
+    """Analyze performance by equation type (linear vs non-linear)."""
+    if 'equation_type' not in df.columns:
+        return pd.DataFrame()
+    
+    summary = df.groupby('equation_type').agg({
+        'f1_score': ['mean', 'std', 'count'],
+        'precision': ['mean', 'std'],
+        'recall': ['mean', 'std'],
+        'shd': ['mean', 'std'],
+        'normalized_shd': ['mean', 'std']
+    }).round(3)
+    
+    return summary
+
+def analyze_by_noise_type(df: pd.DataFrame) -> pd.DataFrame:
+    """Analyze performance by noise type (for Phase 3 experiments)."""
+    if 'noise_type' not in df.columns:
+        return pd.DataFrame()
+    
+    summary = df.groupby('noise_type').agg({
+        'f1_score': ['mean', 'std', 'count'],
+        'precision': ['mean', 'std'],
+        'recall': ['mean', 'std'],
+        'shd': ['mean', 'std'],
+        'normalized_shd': ['mean', 'std']
+    }).round(3)
+    
+    return summary
+
+def analyze_by_root_distribution(df: pd.DataFrame) -> pd.DataFrame:
+    """Analyze performance by root node distribution type (for Phase 3 experiments)."""
+    if 'root_distribution_type' not in df.columns:
+        return pd.DataFrame()
+    
+    summary = df.groupby('root_distribution_type').agg({
+        'f1_score': ['mean', 'std', 'count'],
+        'precision': ['mean', 'std'],
+        'recall': ['mean', 'std'],
+        'shd': ['mean', 'std'],
+        'normalized_shd': ['mean', 'std']
+    }).round(3)
+    
+    return summary
+
+def analyze_by_edge_density(df: pd.DataFrame) -> pd.DataFrame:
+    """Analyze performance by edge density (graph sparsity for Phase 3 experiments)."""
+    if 'edge_density' not in df.columns:
+        return pd.DataFrame()
+    
+    # Create density bins for better grouping
+    density_bins = [0, 0.2, 0.4, 0.6, 0.8, 1.0]
+    density_labels = ['Very Sparse (0-0.2)', 'Sparse (0.2-0.4)', 'Medium (0.4-0.6)', 
+                     'Dense (0.6-0.8)', 'Very Dense (0.8-1.0)']
+    
+    # Create a copy to avoid modifying original
+    df_copy = df.copy()
+    df_copy['density_category'] = pd.cut(df_copy['edge_density'], 
+                                         bins=density_bins, 
+                                         labels=density_labels,
+                                         include_lowest=True)
+    
+    summary = df_copy.groupby('density_category', observed=True).agg({
+        'f1_score': ['mean', 'std', 'count'],
+        'precision': ['mean', 'std'],
+        'recall': ['mean', 'std'],
+        'shd': ['mean', 'std'],
+        'normalized_shd': ['mean', 'std'],
+        'edge_density': 'mean'  # Show actual mean density in each bin
+    }).round(3)
+    
+    return summary
+
 
 def main():
     parser = argparse.ArgumentParser(description='Analyze causal discovery results')
@@ -104,7 +208,7 @@ def main():
     print(f"RESULTS ANALYSIS")
     print(f"{'='*60}\n")
     
-    print(f"Total datasets: {df['dataset_name'].nunique()}")
+    print(f"Total datasets: {df['dataset_dir'].nunique()}")
     print(f"Total algorithm runs: {len(df)}")
     print(f"Algorithms: {df['algorithm'].unique().tolist()}\n")
     
@@ -117,7 +221,7 @@ def main():
     print(summary)
     
     # Compare with/without prior knowledge
-    if 'use_prior_knowledge' in df.columns:
+    if 'use_prior' in df.columns:
         print(f"\n{'='*60}")
         print("COMPARISON: WITH vs WITHOUT PRIOR KNOWLEDGE")
         print(f"{'='*60}\n")
@@ -126,13 +230,87 @@ def main():
         if not comparison.empty:
             print(comparison.to_string(index=False))
     
-    # Best performing algorithm
+    # Best performing algorithm by F1 Score
     print(f"\n{'='*60}")
-    print("BEST PERFORMING ALGORITHMS (by Unified Score)")
+    print("BEST PERFORMING ALGORITHMS (by F1 Score)")
     print(f"{'='*60}\n")
     
-    best_algorithms = df.groupby('algorithm')['unified_score'].mean().sort_values(ascending=False)
+    best_algorithms = df.groupby('algorithm')['f1_score'].mean().sort_values(ascending=False)
     print(best_algorithms.round(3))
+    
+    # Best performing algorithm by Normalized SHD
+    print(f"\n{'='*60}")
+    print("BEST PERFORMING ALGORITHMS (by Normalized SHD)")
+    print(f"{'='*60}\n")
+    
+    best_nshd = df.groupby('algorithm')['normalized_shd'].mean().sort_values(ascending=False)
+    print(best_nshd.round(3))
+    
+    # Performance by Pattern Type
+    print(f"\n{'='*60}")
+    print("PERFORMANCE BY CAUSAL STRUCTURE PATTERN")
+    print(f"{'='*60}\n")
+    
+    pattern_analysis = analyze_by_pattern(df)
+    if not pattern_analysis.empty:
+        print(pattern_analysis)
+    else:
+        print("No pattern data available")
+    
+    # Performance by Variable Type
+    print(f"\n{'='*60}")
+    print("PERFORMANCE BY VARIABLE TYPE (Continuous vs Mixed)")
+    print(f"{'='*60}\n")
+    
+    var_type_analysis = analyze_by_var_type(df)
+    if not var_type_analysis.empty:
+        print(var_type_analysis)
+    else:
+        print("No variable type data available")
+    
+    # Performance by Equation Type
+    print(f"\n{'='*60}")
+    print("PERFORMANCE BY EQUATION TYPE (Linear vs Non-Linear)")
+    print(f"{'='*60}\n")
+    
+    equation_analysis = analyze_by_equation_type(df)
+    if not equation_analysis.empty:
+        print(equation_analysis)
+    else:
+        print("No equation type data available")
+    
+    # Performance by Noise Type (Phase 3)
+    print(f"\n{'='*60}")
+    print("PERFORMANCE BY NOISE TYPE (Phase 3)")
+    print(f"{'='*60}\n")
+    
+    noise_analysis = analyze_by_noise_type(df)
+    if not noise_analysis.empty:
+        print(noise_analysis)
+    else:
+        print("No noise type data available (Phase 3 only)")
+    
+    # Performance by Root Distribution (Phase 3)
+    print(f"\n{'='*60}")
+    print("PERFORMANCE BY ROOT DISTRIBUTION TYPE (Phase 3)")
+    print(f"{'='*60}\n")
+    
+    root_dist_analysis = analyze_by_root_distribution(df)
+    if not root_dist_analysis.empty:
+        print(root_dist_analysis)
+    else:
+        print("No root distribution data available (Phase 3 only)")
+    
+    # Performance by Edge Density (Phase 3)
+    print(f"\n{'='*60}")
+    print("PERFORMANCE BY EDGE DENSITY (Phase 3)")
+    print(f"{'='*60}\n")
+    
+    edge_density_analysis = analyze_by_edge_density(df)
+    if not edge_density_analysis.empty:
+        print(edge_density_analysis)
+    else:
+        print("No edge density variation data available")
     
     # Dataset characteristics analysis
     print(f"\n{'='*60}")
@@ -146,17 +324,103 @@ def main():
     # Save summary if requested
     if args.output:
         with open(args.output, 'w') as f:
+            # Header
+            f.write("="*70 + "\n")
+            f.write("CAUSAL DISCOVERY EXPERIMENT ANALYSIS REPORT\n")
+            f.write("="*70 + "\n\n")
+            
+            f.write(f"Total datasets: {df['dataset_dir'].nunique()}\n")
+            f.write(f"Total algorithm runs: {len(df)}\n")
+            f.write(f"Algorithms: {', '.join(df['algorithm'].unique().tolist())}\n\n")
+            
+            # Algorithm Performance Summary
+            f.write("="*70 + "\n")
             f.write("ALGORITHM PERFORMANCE SUMMARY\n")
-            f.write("="*60 + "\n\n")
+            f.write("="*70 + "\n\n")
             f.write(summary.to_string())
             f.write("\n\n")
             
-            if not comparison.empty:
+            # Prior Knowledge Comparison
+            if 'use_prior' in df.columns and not comparison.empty:
+                f.write("="*70 + "\n")
                 f.write("COMPARISON: WITH vs WITHOUT PRIOR KNOWLEDGE\n")
-                f.write("="*60 + "\n\n")
+                f.write("="*70 + "\n\n")
                 f.write(comparison.to_string(index=False))
+                f.write("\n\n")
+            
+            # Best Algorithms by F1 Score
+            f.write("="*70 + "\n")
+            f.write("BEST PERFORMING ALGORITHMS (by F1 Score)\n")
+            f.write("="*70 + "\n\n")
+            f.write(best_algorithms.to_string())
+            f.write("\n\n")
+            
+            # Best Algorithms by Normalized SHD
+            f.write("="*70 + "\n")
+            f.write("BEST PERFORMING ALGORITHMS (by Normalized SHD)\n")
+            f.write("="*70 + "\n\n")
+            f.write(best_nshd.to_string())
+            f.write("\n\n")
+            
+            # Performance by Pattern
+            if not pattern_analysis.empty:
+                f.write("="*70 + "\n")
+                f.write("PERFORMANCE BY CAUSAL STRUCTURE PATTERN\n")
+                f.write("="*70 + "\n\n")
+                f.write(pattern_analysis.to_string())
+                f.write("\n\n")
+            
+            # Performance by Variable Type
+            if not var_type_analysis.empty:
+                f.write("="*70 + "\n")
+                f.write("PERFORMANCE BY VARIABLE TYPE (Continuous vs Mixed)\n")
+                f.write("="*70 + "\n\n")
+                f.write(var_type_analysis.to_string())
+                f.write("\n\n")
+            
+            # Performance by Equation Type
+            if not equation_analysis.empty:
+                f.write("="*70 + "\n")
+                f.write("PERFORMANCE BY EQUATION TYPE (Linear vs Non-Linear)\n")
+                f.write("="*70 + "\n\n")
+                f.write(equation_analysis.to_string())
+                f.write("\n\n")
+            
+            # Performance by Noise Type (Phase 3)
+            if not noise_analysis.empty:
+                f.write("="*70 + "\n")
+                f.write("PERFORMANCE BY NOISE TYPE (Phase 3)\n")
+                f.write("="*70 + "\n\n")
+                f.write(noise_analysis.to_string())
+                f.write("\n\n")
+            
+            # Performance by Root Distribution (Phase 3)
+            if not root_dist_analysis.empty:
+                f.write("="*70 + "\n")
+                f.write("PERFORMANCE BY ROOT DISTRIBUTION TYPE (Phase 3)\n")
+                f.write("="*70 + "\n\n")
+                f.write(root_dist_analysis.to_string())
+                f.write("\n\n")
+            
+            # Performance by Edge Density (Phase 3)
+            if not edge_density_analysis.empty:
+                f.write("="*70 + "\n")
+                f.write("PERFORMANCE BY EDGE DENSITY (Phase 3)\n")
+                f.write("="*70 + "\n\n")
+                f.write(edge_density_analysis.to_string())
+                f.write("\n\n")
+            
+            # Dataset Characteristic Correlations
+            if not characteristics.empty:
+                f.write("="*70 + "\n")
+                f.write("DATASET CHARACTERISTIC CORRELATIONS\n")
+                f.write("="*70 + "\n\n")
+                f.write(characteristics.to_string(index=False))
+                f.write("\n\n")
         
-        print(f"\nSummary saved to: {args.output}")
+        print(f"\n{'='*60}")
+        print(f"✓ Complete analysis saved to: {args.output}")
+        print(f"{'='*60}")
 
 if __name__ == "__main__":
     main()
