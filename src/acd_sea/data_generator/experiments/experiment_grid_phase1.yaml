@@ -1,0 +1,16 @@
+# Experiment grid for CSuite data generation (Phase 1 only)
+# Wide coverage: sizes 2-10, continuous variables, default equations
+
+# Output location for generated datasets and index.csv
+output_dir: csuite_grid_datasets
+train_ratio: 1
+num_stations: 3
+
+phase1:
+  # Sizes 2..10, patterns constrained by minimum-n rules in generator
+  sizes: [2,3,4,5,6,7,8,9,10]
+  patterns: [chain, collider, backdoor, weak_arrow]
+  samples: [1000]
+  seeds: 1
+  var_types: [continuous]   # continuous = no categorical roots and no nominal non-roots
+  override_equation: false  # use pattern default (mostly linear)

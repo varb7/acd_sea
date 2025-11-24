@@ -279,47 +279,47 @@ def run_phase3(cfg: Dict):
         for pattern in valid_patterns_for_n(int(n), patterns):
             for density in edge_densities:
                 for eq_type in equation_types:
-                for vt in var_types:
-                    vt_cfg = build_var_type_config(vt, cfg.get('phase2', {}).get('mixed_config', {}))
-                    for root_dist in root_distributions:
-                        for noise_cfg in noise_configs:
-                            for num_samples in samples_list:
-                                for seed in range(seeds):
-                                    gen_cfg = {
-                                        'pattern': pattern,
-                                        'num_nodes': int(n),
-                                        'num_samples': int(num_samples),
-                                        'seed': int(cfg.get('seed', 42)) + seed,
-                                        'num_stations': num_stations,
-                                        'equation_type': eq_type,
-                                        'root_distribution_type': root_dist['type'],
-                                        'root_distribution_params': root_dist.get('params', {}),
-                                        'default_noise_type': noise_cfg['type'],
-                                        'default_noise_params': noise_cfg.get('params', {}),
-                                        'edge_density': density,
-                                        **vt_cfg,
-                                    }
-                                    
-                                    df, metadata, G = generate_csuite2_dataset(gen_cfg)
+                    for vt in var_types:
+                        vt_cfg = build_var_type_config(vt, cfg.get('phase2', {}).get('mixed_config', {}))
+                        for root_dist in root_distributions:
+                            for noise_cfg in noise_configs:
+                                for num_samples in samples_list:
+                                    for seed in range(seeds):
+                                        gen_cfg = {
+                                            'pattern': pattern,
+                                            'num_nodes': int(n),
+                                            'num_samples': int(num_samples),
+                                            'seed': int(cfg.get('seed', 42)) + seed,
+                                            'num_stations': num_stations,
+                                            'equation_type': eq_type,
+                                            'root_distribution_type': root_dist['type'],
+                                            'root_distribution_params': root_dist.get('params', {}),
+                                            'default_noise_type': noise_cfg['type'],
+                                            'default_noise_params': noise_cfg.get('params', {}),
+                                            'edge_density': density,
+                                            **vt_cfg,
+                                        }
+                                        
+                                        df, metadata, G = generate_csuite2_dataset(gen_cfg)
 
-                                    # augment metadata with Phase 3 specific information
-                                    metadata = {**metadata,
-                                                'seed': gen_cfg['seed'],
-                                                'equation_type_override': eq_type,
-                                                'var_type_tag': vt,
-                                                'root_categorical': vt_cfg['root_categorical'],
-                                                'nonroot_categorical_pct': vt_cfg['nonroot_categorical_pct'],
-                                                'root_distribution_type': root_dist['type'],
-                                                'root_distribution_params': str(root_dist.get('params', {})),
-                                                'noise_type': noise_cfg['type'],
-                                                'noise_params': str(noise_cfg.get('params', {}))}
+                                        # augment metadata with Phase 3 specific information
+                                        metadata = {**metadata,
+                                                    'seed': gen_cfg['seed'],
+                                                    'equation_type_override': eq_type,
+                                                    'var_type_tag': vt,
+                                                    'root_categorical': vt_cfg['root_categorical'],
+                                                    'nonroot_categorical_pct': vt_cfg['nonroot_categorical_pct'],
+                                                    'root_distribution_type': root_dist['type'],
+                                                    'root_distribution_params': str(root_dist.get('params', {})),
+                                                    'noise_type': noise_cfg['type'],
+                                                    'noise_params': str(noise_cfg.get('params', {}))}
 
-                                    # Create descriptive base name
-                                    root_dist_tag = describe_root_distribution(root_dist)
-                                    noise_tag = describe_noise_config(noise_cfg)
-                                    density_tag = f"_d{int(density*100)}" if pattern == 'random_dag' else ""
-                                    base = f"csuite_{pattern}_{int(n)}n_p3{density_tag}_{eq_type}_{vt}_{root_dist_tag}_{noise_tag}_{int(num_samples)}_{gen_cfg['seed']:04d}"
-                                    save_one_dataset(df, metadata, G, out_dir, base, index_file, train_ratio)
+                                        # Create descriptive base name
+                                        root_dist_tag = describe_root_distribution(root_dist)
+                                        noise_tag = describe_noise_config(noise_cfg)
+                                        density_tag = f"_d{int(density*100)}" if pattern == 'random_dag' else ""
+                                        base = f"csuite_{pattern}_{int(n)}n_p3{density_tag}_{eq_type}_{vt}_{root_dist_tag}_{noise_tag}_{int(num_samples)}_{gen_cfg['seed']:04d}"
+                                        save_one_dataset(df, metadata, G, out_dir, base, index_file, train_ratio)
 
 
 def main():
