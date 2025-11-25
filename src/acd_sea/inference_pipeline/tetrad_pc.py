@@ -10,8 +10,12 @@ import numpy as np
 import pandas as pd
 import jpype, jpype.imports
 from importlib.resources import files
-from pandas.api.types import is_integer_dtype, is_categorical_dtype, is_float_dtype
 
+# Import shared CI test selector
+try:
+    from src.acd_sea.utils.tetrad_ci_tests import TetradCITestSelector
+except ImportError:
+    from utils.tetrad_ci_tests import TetradCITestSelector
 
 class TetradPC:
     def __init__(self, **kwargs):
@@ -20,6 +24,13 @@ class TetradPC:
         self.include_undirected = kwargs.get("include_undirected", True)
         self.use_prior_knowledge = kwargs.get("use_prior_knowledge", False)
         self.prior_knowledge = kwargs.get("prior_knowledge", None)
+        
+        # Create CI test selector
+        self.ci_selector = TetradCITestSelector(
+            alpha=self.alpha,
+            **{k: v for k, v in kwargs.items() if k.startswith(("linear_", "gaussian_", "max_"))}
+        )
+        
         self._ensure_jvm(); self._import_tetrad_modules()
 
     def _ensure_jvm(self):
@@ -46,26 +57,28 @@ class TetradPC:
         self.search, self.test, self.graph, self.ptt = search, test, graph, ptt
 
     def _detect_data_types(self, df: pd.DataFrame) -> Tuple[list, list]:
-        cats, cont = [], []
-        for c in df.columns:
-            if is_integer_dtype(df[c]) or is_categorical_dtype(df[c]): cats.append(c)
-            elif is_float_dtype(df[c]): cont.append(c)
-            else:
-                try: df[c] = df[c].astype("int64"); cats.append(c)
-                except Exception: df[c] = pd.to_numeric(df[c], errors="coerce").astype("float64"); cont.append(c)
-        return cats, cont
+        return self.ci_selector.detect_data_types(df)
 
     def _convert(self, df: pd.DataFrame):
         df = df.copy(); cats, cont = self._detect_data_types(df)
+        
+        # Run diagnostics
+        diagnostics = self.ci_selector.assess_global_diagnostics(df, cats, cont)
+        self.ci_selector.set_diagnostics(diagnostics)
+        
         for c in df.columns: df[c] = df[c].astype("int64") if c in cats else df[c].astype("float64")
         tetrad_data = self.ptt.pandas_data_to_tetrad(df)
         if hasattr(tetrad_data, "getDataSet"): tetrad_data = tetrad_data.getDataSet()
         return tetrad_data, cats, cont
 
     def _indep(self, tetrad_data, cats, cont):
-        if cats and cont: return self.test.IndTestConditionalGaussianLrt(tetrad_data, self.alpha, True)
-        elif cats and not cont: return self.test.IndTestChiSquare(tetrad_data, self.alpha)
-        else: return self.test.IndTestFisherZ(tetrad_data, self.alpha)
+        return self.ci_selector.create_independence_test(
+            tetrad_data, cats, cont, self.test, self.ptt
+        )
+    
+    def get_diagnostics(self) -> Dict[str, Any]:
+        """Return diagnostics including selected CI test."""
+        return self.ci_selector.get_diagnostics()
 
     def _graph_to_adjacency(self, g, columns):
         n = len(columns); adj = np.zeros((n, n), dtype=int); Endpoint = self.graph.Endpoint
@@ -105,6 +118,13 @@ class TetradPC:
                 print(f"[WARNING] Could not build knowledge for PC: {e}")
         
         tetrad_data, cats, cont = self._convert(df)
+        
+        # Get diagnostics to decide which implementation to use
+        diagnostics = self.ci_selector.get_diagnostics()
+        regime = diagnostics.get('regime', 'unknown')
+        
+        # Default: Use Tetrad PC with parametric test
+        self.ci_selector._algorithm_impl = "tetrad"
         indep = self._indep(tetrad_data, cats, cont)
         alg = self.search.Pc(indep)
         if hasattr(alg, "setDepth"): alg.setDepth(self.depth)
@@ -116,7 +136,6 @@ class TetradPC:
         cpdag = alg.search()
         return self._graph_to_adjacency(cpdag, columns)
 
-
 def run_pc(
     data: Union[pd.DataFrame, np.ndarray],
     columns: Optional[list] = None,
@@ -124,12 +143,13 @@ def run_pc(
     depth: int = -1,
     include_undirected: bool = True,
     prior: Optional[Dict] = None,
+    **kwargs,
 ) -> np.ndarray:
     pc = TetradPC(
         alpha=alpha, 
         depth=depth, 
         include_undirected=include_undirected,
+        **kwargs,
     )
     return pc.run(data, columns, prior=prior)
-
 

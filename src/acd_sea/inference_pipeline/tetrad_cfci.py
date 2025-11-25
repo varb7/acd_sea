@@ -13,7 +13,6 @@ import jpype, jpype.imports
 from importlib.resources import files
 from pandas.api.types import is_integer_dtype, is_categorical_dtype, is_float_dtype
 
-
 class TetradCFCI:
     def __init__(self, **kwargs):
         self.alpha = kwargs.get("alpha", 0.01)
@@ -106,13 +105,19 @@ class TetradCFCI:
                 print(f"[WARNING] Could not build knowledge for CFCI: {e}")
         
         tetrad_data, cats, cont = self._convert(df)
+        
+        # Get diagnostics to decide which implementation to use
+        diagnostics = self.ci_selector.get_diagnostics()
+        regime = diagnostics.get('regime', 'unknown')
+        
+        # Default: Use Tetrad CFCI with parametric test
+        self.ci_selector._algorithm_impl = "tetrad"
         indep = self._indep(tetrad_data, cats, cont)
         alg = self.search.Cfci(indep)
         if hasattr(alg, "setDepth"): alg.setDepth(self.depth)
         if knowledge is not None: alg.setKnowledge(knowledge)
         pag = alg.search()
         return self._pag_to_adjacency(pag, columns)
-
 
 def run_cfci(
     data: Union[pd.DataFrame, np.ndarray],
@@ -121,8 +126,8 @@ def run_cfci(
     depth: int = -1,
     include_undirected: bool = True,
     prior: Optional[dict] = None,
+    **kwargs,
 ) -> np.ndarray:
-    cfci = TetradCFCI(alpha=alpha, depth=depth, include_undirected=include_undirected)
+    cfci = TetradCFCI(alpha=alpha, depth=depth, include_undirected=include_undirected, **kwargs)
     return cfci.run(data, columns, prior=prior)
-
 

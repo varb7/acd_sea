@@ -13,16 +13,24 @@ def load_results(results_file: str) -> pd.DataFrame:
 
 def analyze_algorithm_performance(df: pd.DataFrame) -> pd.DataFrame:
     """Compute performance metrics per algorithm."""
-    metrics_cols = ['f1_score', 'precision', 'recall', 'shd', 'normalized_shd']
+    metrics_cols = ['f1_score', 'precision', 'recall', 'shd', 'normalized_shd', 'sid', 'gscore', 'pred_edge_count']
     
-    summary = df.groupby(['algorithm', 'use_prior']).agg({
+    # Only include SID and gscore if they exist in the dataframe
+    agg_dict = {
         'f1_score': ['mean', 'std'],
         'precision': ['mean', 'std'],
         'recall': ['mean', 'std'],
         'shd': ['mean', 'std'],
         'normalized_shd': ['mean', 'std'],
+        'pred_edge_count': 'mean',
         'execution_time': 'mean'
-    }).round(3)
+    }
+    if 'sid' in df.columns:
+        agg_dict['sid'] = ['mean', 'std']
+    if 'gscore' in df.columns:
+        agg_dict['gscore'] = ['mean', 'std']
+    
+    summary = df.groupby(['algorithm', 'use_prior']).agg(agg_dict).round(3)
     
     return summary
 
@@ -74,6 +82,12 @@ def analyze_by_dataset_characteristics(df: pd.DataFrame) -> pd.DataFrame:
     numeric_cols = df.select_dtypes(include=[np.number]).columns
     metric_cols = ['f1_score', 'precision', 'recall', 'normalized_shd']
     
+    # Add SID and gscore if available
+    if 'sid' in df.columns:
+        metric_cols.append('sid')
+    if 'gscore' in df.columns:
+        metric_cols.append('gscore')
+    
     correlations = []
     for metric in metric_cols:
         for col in ['num_nodes', 'num_edges', 'edge_density', 'num_samples', 'num_roots']:
@@ -93,13 +107,20 @@ def analyze_by_pattern(df: pd.DataFrame) -> pd.DataFrame:
     if 'pattern' not in df.columns:
         return pd.DataFrame()
     
-    summary = df.groupby('pattern').agg({
+    agg_dict = {
         'f1_score': ['mean', 'std', 'count'],
         'precision': ['mean', 'std'],
         'recall': ['mean', 'std'],
         'shd': ['mean', 'std'],
-        'normalized_shd': ['mean', 'std']
-    }).round(3)
+        'normalized_shd': ['mean', 'std'],
+        'pred_edge_count': 'mean'
+    }
+    if 'sid' in df.columns:
+        agg_dict['sid'] = ['mean', 'std']
+    if 'gscore' in df.columns:
+        agg_dict['gscore'] = ['mean', 'std']
+    
+    summary = df.groupby('pattern').agg(agg_dict).round(3)
     
     return summary
 
@@ -108,13 +129,20 @@ def analyze_by_var_type(df: pd.DataFrame) -> pd.DataFrame:
     if 'var_type_tag' not in df.columns:
         return pd.DataFrame()
     
-    summary = df.groupby('var_type_tag').agg({
+    agg_dict = {
         'f1_score': ['mean', 'std', 'count'],
         'precision': ['mean', 'std'],
         'recall': ['mean', 'std'],
         'shd': ['mean', 'std'],
-        'normalized_shd': ['mean', 'std']
-    }).round(3)
+        'normalized_shd': ['mean', 'std'],
+        'pred_edge_count': 'mean'
+    }
+    if 'sid' in df.columns:
+        agg_dict['sid'] = ['mean', 'std']
+    if 'gscore' in df.columns:
+        agg_dict['gscore'] = ['mean', 'std']
+    
+    summary = df.groupby('var_type_tag').agg(agg_dict).round(3)
     
     return summary
 
@@ -123,13 +151,20 @@ def analyze_by_equation_type(df: pd.DataFrame) -> pd.DataFrame:
     if 'equation_type' not in df.columns:
         return pd.DataFrame()
     
-    summary = df.groupby('equation_type').agg({
+    agg_dict = {
         'f1_score': ['mean', 'std', 'count'],
         'precision': ['mean', 'std'],
         'recall': ['mean', 'std'],
         'shd': ['mean', 'std'],
-        'normalized_shd': ['mean', 'std']
-    }).round(3)
+        'normalized_shd': ['mean', 'std'],
+        'pred_edge_count': 'mean'
+    }
+    if 'sid' in df.columns:
+        agg_dict['sid'] = ['mean', 'std']
+    if 'gscore' in df.columns:
+        agg_dict['gscore'] = ['mean', 'std']
+    
+    summary = df.groupby('equation_type').agg(agg_dict).round(3)
     
     return summary
 
@@ -138,13 +173,20 @@ def analyze_by_noise_type(df: pd.DataFrame) -> pd.DataFrame:
     if 'noise_type' not in df.columns:
         return pd.DataFrame()
     
-    summary = df.groupby('noise_type').agg({
+    agg_dict = {
         'f1_score': ['mean', 'std', 'count'],
         'precision': ['mean', 'std'],
         'recall': ['mean', 'std'],
         'shd': ['mean', 'std'],
-        'normalized_shd': ['mean', 'std']
-    }).round(3)
+        'normalized_shd': ['mean', 'std'],
+        'pred_edge_count': 'mean'
+    }
+    if 'sid' in df.columns:
+        agg_dict['sid'] = ['mean', 'std']
+    if 'gscore' in df.columns:
+        agg_dict['gscore'] = ['mean', 'std']
+    
+    summary = df.groupby('noise_type').agg(agg_dict).round(3)
     
     return summary
 
@@ -153,13 +195,20 @@ def analyze_by_root_distribution(df: pd.DataFrame) -> pd.DataFrame:
     if 'root_distribution_type' not in df.columns:
         return pd.DataFrame()
     
-    summary = df.groupby('root_distribution_type').agg({
+    agg_dict = {
         'f1_score': ['mean', 'std', 'count'],
         'precision': ['mean', 'std'],
         'recall': ['mean', 'std'],
         'shd': ['mean', 'std'],
-        'normalized_shd': ['mean', 'std']
-    }).round(3)
+        'normalized_shd': ['mean', 'std'],
+        'pred_edge_count': 'mean'
+    }
+    if 'sid' in df.columns:
+        agg_dict['sid'] = ['mean', 'std']
+    if 'gscore' in df.columns:
+        agg_dict['gscore'] = ['mean', 'std']
+    
+    summary = df.groupby('root_distribution_type').agg(agg_dict).round(3)
     
     return summary
 
@@ -186,8 +235,17 @@ def analyze_by_edge_density(df: pd.DataFrame) -> pd.DataFrame:
         'recall': ['mean', 'std'],
         'shd': ['mean', 'std'],
         'normalized_shd': ['mean', 'std'],
+        'pred_edge_count': 'mean',
         'edge_density': 'mean'  # Show actual mean density in each bin
     }).round(3)
+    
+    # Add SID and gscore if available
+    if 'sid' in df.columns and 'sid' not in summary.columns.get_level_values(0):
+        sid_stats = df_copy.groupby('density_category', observed=True)['sid'].agg(['mean', 'std']).round(3)
+        summary = pd.concat([summary, sid_stats], axis=1, keys=[summary.columns.names[0], 'sid'])
+    if 'gscore' in df.columns and 'gscore' not in summary.columns.get_level_values(0):
+        gscore_stats = df_copy.groupby('density_category', observed=True)['gscore'].agg(['mean', 'std']).round(3)
+        summary = pd.concat([summary, gscore_stats], axis=1, keys=[summary.columns.names[0], 'gscore'])
     
     return summary
 
@@ -245,6 +303,24 @@ def main():
     
     best_nshd = df.groupby('algorithm')['normalized_shd'].mean().sort_values(ascending=False)
     print(best_nshd.round(3))
+    
+    # Best performing algorithm by SID (if available)
+    if 'sid' in df.columns:
+        print(f"\n{'='*60}")
+        print("BEST PERFORMING ALGORITHMS (by SID - Lower is Better)")
+        print(f"{'='*60}\n")
+        
+        best_sid = df.groupby('algorithm')['sid'].mean().sort_values(ascending=True)
+        print(best_sid.round(3))
+    
+    # Best performing algorithm by gscore (if available)
+    if 'gscore' in df.columns:
+        print(f"\n{'='*60}")
+        print("BEST PERFORMING ALGORITHMS (by G-Score)")
+        print(f"{'='*60}\n")
+        
+        best_gscore = df.groupby('algorithm')['gscore'].mean().sort_values(ascending=False)
+        print(best_gscore.round(3))
     
     # Performance by Pattern Type
     print(f"\n{'='*60}")
@@ -361,6 +437,24 @@ def main():
             f.write("="*70 + "\n\n")
             f.write(best_nshd.to_string())
             f.write("\n\n")
+            
+            # Best Algorithms by SID (if available)
+            if 'sid' in df.columns:
+                f.write("="*70 + "\n")
+                f.write("BEST PERFORMING ALGORITHMS (by SID - Lower is Better)\n")
+                f.write("="*70 + "\n\n")
+                best_sid = df.groupby('algorithm')['sid'].mean().sort_values(ascending=True)
+                f.write(best_sid.to_string())
+                f.write("\n\n")
+            
+            # Best Algorithms by gscore (if available)
+            if 'gscore' in df.columns:
+                f.write("="*70 + "\n")
+                f.write("BEST PERFORMING ALGORITHMS (by G-Score)\n")
+                f.write("="*70 + "\n\n")
+                best_gscore = df.groupby('algorithm')['gscore'].mean().sort_values(ascending=False)
+                f.write(best_gscore.to_string())
+                f.write("\n\n")
             
             # Performance by Pattern
             if not pattern_analysis.empty:

@@ -17,6 +17,11 @@ import jpype.imports
 from importlib.resources import files
 from pandas.api.types import is_integer_dtype, is_categorical_dtype, is_float_dtype
 
+# Import shared CI test selector
+try:
+    from src.acd_sea.utils.tetrad_ci_tests import TetradCITestSelector
+except ImportError:
+    from utils.tetrad_ci_tests import TetradCITestSelector
 
 class TetradBossFCI:
     """
@@ -55,6 +60,13 @@ class TetradBossFCI:
         self.verbose = kwargs.get("verbose", False)
         self.complete_rule_set = kwargs.get("complete_rule_set", True)
         self.max_path_length = kwargs.get("max_path_length", -1)
+        
+        # Create CI test selector
+        self.ci_selector = TetradCITestSelector(
+            alpha=self.alpha,
+            **{k: v for k, v in kwargs.items() if k.startswith(("linear_", "gaussian_", "max_"))}
+        )
+        
         self._ensure_jvm()
         self._import_tetrad_modules()
 
@@ -92,25 +104,17 @@ class TetradBossFCI:
 
     def _detect_data_types(self, df: pd.DataFrame):
         """Detect categorical and continuous columns."""
-        cats, cont = [], []
-        for c in df.columns:
-            if is_integer_dtype(df[c]) or is_categorical_dtype(df[c]):
-                cats.append(c)
-            elif is_float_dtype(df[c]):
-                cont.append(c)
-            else:
-                try:
-                    df[c] = df[c].astype("int64")
-                    cats.append(c)
-                except Exception:
-                    df[c] = pd.to_numeric(df[c], errors="coerce").astype("float64")
-                    cont.append(c)
-        return cats, cont
+        return self.ci_selector.detect_data_types(df)
 
     def _convert_to_tetrad_format(self, df: pd.DataFrame):
         """Convert pandas DataFrame to Tetrad dataset."""
         df = df.copy()
         cats, cont = self._detect_data_types(df)
+        
+        # Run diagnostics
+        diagnostics = self.ci_selector.assess_global_diagnostics(df, cats, cont)
+        self.ci_selector.set_diagnostics(diagnostics)
+        
         for c in df.columns:
             df[c] = df[c].astype("int64") if c in cats else df[c].astype("float64")
         
@@ -121,12 +125,9 @@ class TetradBossFCI:
 
     def _get_independence_test(self, tetrad_data, cats, cont):
         """Create appropriate independence test based on data types."""
-        if cats and cont:
-            return self.test.IndTestConditionalGaussianLrt(tetrad_data, self.alpha, True)
-        elif cats and not cont:
-            return self.test.IndTestChiSquare(tetrad_data, self.alpha)
-        else:
-            return self.test.IndTestFisherZ(tetrad_data, self.alpha)
+        return self.ci_selector.create_independence_test(
+            tetrad_data, cats, cont, self.test, self.ptt
+        )
 
     def _get_score(self, tetrad_data, cats, cont):
         """Create appropriate score based on data types."""
@@ -202,6 +203,13 @@ class TetradBossFCI:
         
         # Convert data and create test/score
         tetrad_data, cats, cont = self._convert_to_tetrad_format(df)
+        
+        # Get diagnostics to decide which implementation to use
+        diagnostics = self.ci_selector.get_diagnostics()
+        regime = diagnostics.get('regime', 'unknown')
+        
+        # Default: Use Tetrad Boss-FCI with parametric test
+        self.ci_selector._algorithm_impl = "tetrad"
         indep_test = self._get_independence_test(tetrad_data, cats, cont)
         score = self._get_score(tetrad_data, cats, cont)
         
@@ -229,17 +237,14 @@ class TetradBossFCI:
         
         return self._pag_to_adjacency(pag, columns)
 
-
 def run_boss_fci(
     data: Union[pd.DataFrame, np.ndarray],
     columns: Optional[list] = None,
     alpha: float = 0.01,
     depth: int = -1,
     include_undirected: bool = True,
-    penalty_discount: float = 2.0,
-    num_starts: int = 1,
-    use_bes: bool = True,
     prior: Optional[dict] = None,
+    **kwargs,
 ) -> np.ndarray:
     """Convenience function for BOSS-FCI."""
     boss_fci = TetradBossFCI(

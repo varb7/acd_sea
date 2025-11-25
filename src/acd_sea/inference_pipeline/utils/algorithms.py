@@ -619,10 +619,14 @@ def compute_metrics(pred_adj: np.ndarray, true_adj: np.ndarray, max_edges: int) 
         
         metrics = MetricsDAG(pred_binary, true_binary).metrics
         
-        # Handle NaN values in metrics
+        # Extract basic metrics
         precision = metrics.get('precision', 0.0)
         recall = metrics.get('recall', 0.0)
         shd = metrics.get('shd', None)
+        
+        # Extract SID and gscore (available in gCastle's MetricsDAG)
+        sid = metrics.get('sid', None)
+        gscore = metrics.get('gscore', None)
         
         # Convert numpy types to Python types to avoid serialization issues
         if isinstance(precision, np.floating):
@@ -631,11 +635,19 @@ def compute_metrics(pred_adj: np.ndarray, true_adj: np.ndarray, max_edges: int) 
             recall = float(recall)
         if isinstance(shd, (np.integer, np.floating)):
             shd = int(shd) if shd == int(shd) else float(shd)
+        if isinstance(sid, (np.integer, np.floating)):
+            sid = int(sid) if sid == int(sid) else float(sid)
+        if isinstance(gscore, np.floating):
+            gscore = float(gscore)
             
         # Handle NaN values
         if np.isnan(precision) or np.isnan(recall):
             precision = 0.0
             recall = 0.0
+        if sid is not None and np.isnan(sid):
+            sid = None
+        if gscore is not None and np.isnan(gscore):
+            gscore = None
             
         # Calculate F1 score safely
         if precision + recall > 0:
@@ -659,7 +671,9 @@ def compute_metrics(pred_adj: np.ndarray, true_adj: np.ndarray, max_edges: int) 
             'f1_score': f1,
             'precision': precision,
             'recall': recall,
-            'pred_edge_count': int(np.sum(pred_binary != 0))
+            'pred_edge_count': int(np.sum(pred_binary != 0)),
+            'sid': sid,
+            'gscore': gscore
         }
     except Exception as e:
         print(f"[ERROR] Exception in compute_metrics: {e}")
@@ -673,7 +687,9 @@ def default_metrics() -> Dict[str, Any]:
         'f1_score': 0.0,
         'precision': 0.0,
         'recall': 0.0,
-        'pred_edge_count': 0
+        'pred_edge_count': 0,
+        'sid': None,
+        'gscore': None
     }
 
 def apply_causal_discovery_algorithms(data: pd.DataFrame, true_adj_matrix: np.ndarray, 

@@ -7,7 +7,6 @@ import jpype, jpype.imports
 from importlib.resources import files
 from pandas.api.types import is_integer_dtype, is_categorical_dtype, is_float_dtype
 
-
 class TetradGFCI:
     def __init__(self, alpha: float = 0.01, depth: int = -1, penalty_discount: float = 2.0, include_undirected: bool = True):
         self.alpha = alpha
@@ -115,6 +114,13 @@ class TetradGFCI:
                 print(f"[WARNING] Could not build knowledge for GFCI: {e}")
         
         tetrad_data, cats, cont = self._convert(df)
+        
+        # Get diagnostics to decide which implementation to use
+        diagnostics = self.ci_selector.get_diagnostics()
+        regime = diagnostics.get('regime', 'unknown')
+        
+        # Default: Use Tetrad GFCI with parametric test
+        self.ci_selector._algorithm_impl = "tetrad"
         indep = self._indep(tetrad_data, cats, cont)
         score = self._score(tetrad_data, cats, cont)
         alg = self.search.Gfci(indep, score)
@@ -146,9 +152,9 @@ def run_gfci(
     columns: Optional[list] = None,
     alpha: float = 0.01,
     depth: int = -1,
-    penalty_discount: float = 2.0,
     include_undirected: bool = True,
     prior: Optional[dict] = None,
+    **kwargs,
 ) -> np.ndarray:
-    gfci = TetradGFCI(alpha=alpha, depth=depth, penalty_discount=penalty_discount, include_undirected=include_undirected)
+    gfci = TetradGFCI(alpha=alpha, depth=depth, include_undirected=include_undirected, **kwargs)
     return gfci.run(data, columns, prior=prior)

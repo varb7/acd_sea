@@ -18,13 +18,24 @@ import jpype, jpype.imports
 from importlib.resources import files
 from pandas.api.types import is_integer_dtype, is_categorical_dtype, is_float_dtype
 
+# Import shared CI test selector
+try:
+    from src.acd_sea.utils.tetrad_ci_tests import TetradCITestSelector
+except ImportError:
+    from utils.tetrad_ci_tests import TetradCITestSelector
 
 class TetradFCIMax:
     def __init__(self, **kwargs):
         self.alpha = kwargs.get("alpha", 0.01)
         self.depth = kwargs.get("depth", -1)
         self.include_undirected = kwargs.get("include_undirected", True)
-
+        
+        # Create CI test selector
+        self.ci_selector = TetradCITestSelector(
+            alpha=self.alpha,
+            **{k: v for k, v in kwargs.items() if k.startswith(("linear_", "gaussian_", "max_"))}
+        )
+        
         self._ensure_jvm()
         self._import_tetrad_modules()
 
@@ -75,6 +86,11 @@ class TetradFCIMax:
     def _convert_to_tetrad_format(self, df: pd.DataFrame):
         df = df.copy()
         cats, cont = self._detect_data_types(df)
+        
+        # Run diagnostics
+        diagnostics = self.ci_selector.assess_global_diagnostics(df, cats, cont)
+        self.ci_selector.set_diagnostics(diagnostics)
+        
         for c in df.columns:
             df[c] = df[c].astype("int64") if c in cats else df[c].astype("float64")
         tetrad_data = self.ptt.pandas_data_to_tetrad(df)
@@ -151,10 +167,10 @@ class TetradFCIMax:
                 print(f"[WARNING] Could not build knowledge for FCI-Max: {e}")
 
         tetrad_data, cats, cont = self._convert_to_tetrad_format(df)
+                self.ci_selector._algorithm_impl = "tetrad"
         indep = self._create_independence_test(tetrad_data, cats, cont)
         pag = self._run_fci_max(indep, knowledge)
         return self._pag_to_adjacency_matrix(pag, columns)
-
 
 def run_fci_max(
     data: Union[pd.DataFrame, np.ndarray],
@@ -163,8 +179,8 @@ def run_fci_max(
     depth: int = -1,
     include_undirected: bool = True,
     prior: Optional[dict] = None,
+    **kwargs,
 ) -> np.ndarray:
     fci_m = TetradFCIMax(alpha=alpha, depth=depth, include_undirected=include_undirected)
     return fci_m.run(data, columns, prior=prior)
-
 
