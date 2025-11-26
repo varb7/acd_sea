@@ -1,5 +1,5 @@
 # Experiment grid for CSuite data generation (Phase 1 only)
-# Wide coverage: sizes 2-10, continuous variables, default equations
+# Linear equations, Gaussian roots, Gaussian noise
 
 # Output location for generated datasets and index.csv
 output_dir: csuite_grid_datasets
@@ -13,4 +13,20 @@ phase1:
   samples: [1000]
   seeds: 1
   var_types: [continuous]   # continuous = no categorical roots and no nominal non-roots
-  override_equation: false  # use pattern default (mostly linear)
+  
+  # Force linear equations only
+  equation_types: [linear]
+  
+  # Gaussian root node distribution
+  root_distributions:
+    - type: normal
+      params:
+        mean: 0.0
+        std: 1.0
+  
+  # Gaussian noise configuration
+  noise_configs:
+    - type: normal
+      params:
+        mean: 0.0
+        std: 1.0
