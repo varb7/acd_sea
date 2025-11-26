@@ -11,7 +11,7 @@ import json
 
 # Load the data
 try:
-    df = pd.read_csv('causal_discovery_results2/experiment_results_phase_test_with_meta.csv')
+    df = pd.read_csv('causal_discovery_results2/experiment_results.csv')
 except FileNotFoundError:
     # Fallback for development/testing if file not found
     print("Warning: Results file not found. Creating dummy data.")

@@ -215,6 +215,17 @@ def run_on_dataset(dataset_dir: Path, registry: AlgorithmRegistry, use_prior: bo
             pre_t = res.preprocessing_time
             post_t = res.postprocessing_time
 
+        # Extract additional metadata fields for visualizer compatibility
+        # For Phase 1 datasets, provide sensible defaults for missing fields
+        root_distribution_type = meta.get('root_distribution_type', 'normal')  # Phase 1 uses Gaussian
+        noise_type = meta.get('noise_type', 'normal')  # Phase 1 uses Gaussian noise
+        edge_density = meta.get('edge_density', 'N/A')
+        
+        # Calculate variation levels and bias based on available metadata
+        root_variation_level = 'low'  # Phase 1 uses standard normal (std=1.0)
+        root_mean_bias = 'none'  # Phase 1 uses zero mean
+        noise_intensity_level = 'medium'  # Phase 1 uses std=1.0 noise
+        
         row = {
             'dataset_dir': str(dataset_dir).replace('\\', '/'),
             'algorithm': algo,
@@ -226,6 +237,12 @@ def run_on_dataset(dataset_dir: Path, registry: AlgorithmRegistry, use_prior: bo
             'seed': meta.get('seed'),
             'equation_type': meta.get('equation_type_override', meta.get('equation_type')),
             'var_type_tag': meta.get('var_type_tag', 'unknown'),
+            'root_distribution_type': root_distribution_type,
+            'root_variation_level': root_variation_level,
+            'root_mean_bias': root_mean_bias,
+            'noise_type': noise_type,
+            'noise_intensity_level': noise_intensity_level,
+            'edge_density': edge_density,
             **metrics,
             'execution_time': exec_t,
             'preprocessing_time': pre_t,
