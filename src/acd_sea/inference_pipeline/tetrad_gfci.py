@@ -8,11 +8,24 @@ from importlib.resources import files
 from pandas.api.types import is_integer_dtype, is_categorical_dtype, is_float_dtype
 
 class TetradGFCI:
-    def __init__(self, alpha: float = 0.01, depth: int = -1, penalty_discount: float = 2.0, include_undirected: bool = True):
+    def __init__(self, alpha: float = 0.01, depth: int = -1, penalty_discount: float = 2.0, include_undirected: bool = True, **kwargs):
         self.alpha = alpha
         self.depth = depth
         self.penalty_discount = penalty_discount
         self.include_undirected = include_undirected
+        
+        # Import shared CI test selector
+        try:
+            from src.acd_sea.utils.tetrad_ci_tests import TetradCITestSelector
+        except ImportError:
+            from utils.tetrad_ci_tests import TetradCITestSelector
+        
+        # Create CI test selector
+        self.ci_selector = TetradCITestSelector(
+            alpha=self.alpha,
+            **{k: v for k, v in kwargs.items() if k.startswith(("linear_", "gaussian_", "max_"))}
+        )
+        
         self._ensure_jvm()
         self._import_tetrad_modules()
 

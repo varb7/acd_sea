@@ -13,11 +13,24 @@ import jpype, jpype.imports
 from importlib.resources import files
 from pandas.api.types import is_integer_dtype, is_categorical_dtype, is_float_dtype
 
+# Import shared CI test selector
+try:
+    from src.acd_sea.utils.tetrad_ci_tests import TetradCITestSelector
+except ImportError:
+    from utils.tetrad_ci_tests import TetradCITestSelector
+
 class TetradFCI:
     def __init__(self, **kwargs):
         self.alpha = kwargs.get("alpha", 0.01)
         self.depth = kwargs.get("depth", -1)
         self.include_undirected = kwargs.get("include_undirected", True)
+        
+        # Create CI test selector
+        self.ci_selector = TetradCITestSelector(
+            alpha=self.alpha,
+            **{k: v for k, v in kwargs.items() if k.startswith(("linear_", "gaussian_", "max_"))}
+        )
+        
         self._ensure_jvm(); self._import_tetrad_modules()
 
     def _ensure_jvm(self):

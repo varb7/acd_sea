@@ -167,7 +167,6 @@ class TetradFCIMax:
                 print(f"[WARNING] Could not build knowledge for FCI-Max: {e}")
 
         tetrad_data, cats, cont = self._convert_to_tetrad_format(df)
-                self.ci_selector._algorithm_impl = "tetrad"
         indep = self._create_independence_test(tetrad_data, cats, cont)
         pag = self._run_fci_max(indep, knowledge)
         return self._pag_to_adjacency_matrix(pag, columns)
