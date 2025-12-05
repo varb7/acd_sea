@@ -114,11 +114,12 @@ def generate_single_dataset(
     # Determine sample size
     num_samples = rng.integers(samples_min, samples_max + 1)
     
-    # Generate DAG
+    # Generate DAG (only once - don't use generate_data_pipeline which regenerates the graph)
+    # The graph is stored in cdg.G and we use that explicitly throughout for consistency
     cdg = CausalDataGenerator(num_samples=num_samples, seed=dataset_seed)
-    G, roots = cdg.generate_random_graph(num_nodes, num_roots, num_edges)
+    _, roots = cdg.generate_random_graph(num_nodes, num_roots, num_edges)
     
-    # Assign distributions
+    # Assign distributions using manufacturing distribution manager
     dist_manager = ManufacturingDistributionManager(config, seed=dataset_seed)
     manufacturing_distributions = dist_manager.assign_manufacturing_distributions(roots)
     
@@ -136,16 +137,14 @@ def generate_single_dataset(
                 'probabilities': dist_info['probabilities']
             }
     
-    # Generate data
-    cdg.G = G.copy()
-    cdg.root_nodes = set(roots)
-    df = cdg.generate_data_pipeline(
-        total_nodes=num_nodes,
-        root_nodes=num_roots,
-        edges=num_edges,
-        equation_type=equation_type,
-        root_distributions_override=scdg_distributions
-    )
+    # Set root distributions directly (bypasses generate_data_pipeline to preserve graph)
+    cdg.set_root_distributions(scdg_distributions)
+    
+    # Assign equations to non-root nodes
+    cdg.assign_equations_to_graph_nodes(equation_type=equation_type)
+    
+    # Generate data using the SAME graph that was created above
+    df = cdg.generate_data()
     
     # Validate dataset for NaN and Inf values
     is_valid, error_msg = validate_dataset(df)
@@ -153,12 +152,13 @@ def generate_single_dataset(
         raise ValueError(f"Dataset validation failed: {error_msg}")
     
     # Extract temporal/station info if requested
+    # Use cdg.G explicitly to ensure we use the SAME graph that generated the data
     extract_stations = config.get('extract_station_info', True)
     num_stations = config.get('num_stations', 3)
     
     if extract_stations:
-        topo_nodes = list(nx.topological_sort(G))
-        raw_assignment = assign_mock_stations(topo_nodes, num_stations=num_stations, graph=G)
+        topo_nodes = list(nx.topological_sort(cdg.G))
+        raw_assignment = assign_mock_stations(topo_nodes, num_stations=num_stations, graph=cdg.G, seed=dataset_seed)
         station_map = {node: raw_assignment[node].split('_')[0] for node in raw_assignment}
         ordered_stations = sorted(set(station_map.values()), key=lambda s: int(s.replace("Station", "")))
         station_to_nodes = {s: [] for s in ordered_stations}
@@ -167,13 +167,13 @@ def generate_single_dataset(
         station_blocks = [station_to_nodes[s] for s in ordered_stations]
         temporal_order = [n for block in station_blocks for n in block]
     else:
-        temporal_order = list(G.nodes())
+        temporal_order = list(cdg.G.nodes())
         station_map = {}
         station_blocks = []
         ordered_stations = []
     
-    # Build adjacency matrix
-    adj_matrix = nx.to_numpy_array(G, nodelist=temporal_order, dtype=int)
+    # Build adjacency matrix from the same graph used for data generation
+    adj_matrix = nx.to_numpy_array(cdg.G, nodelist=temporal_order, dtype=int)
     
     # Build metadata
     categorical_nodes = [

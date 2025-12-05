@@ -2,12 +2,21 @@ import random
 import networkx as nx
 from typing import List, Dict
 
-def assign_mock_stations(nodes: List[int], num_stations: int = 3, graph: nx.DiGraph = None) -> Dict[int, str]:
+def assign_mock_stations(nodes: List[int], num_stations: int = 3, graph: nx.DiGraph = None, seed: int = None) -> Dict[int, str]:
     """
     Assign stations to nodes using causalAssembly's dirichlet station mapper approach.
     
     This creates a proper temporal hierarchy based on topological ordering,
     similar to the convert_to_manufacturing method in CausalDataGenerator.
+    
+    Args:
+        nodes: List of node identifiers
+        num_stations: Number of stations to create
+        graph: NetworkX DiGraph for topological ordering
+        seed: Random seed for reproducibility (each dataset should use its own seed)
+    
+    Returns:
+        Dictionary mapping node to "StationX_node" format
     """
     if graph is not None:
         # Use the same approach as causalAssembly's _dirichlet_station_mapper
@@ -23,7 +32,8 @@ def assign_mock_stations(nodes: List[int], num_stations: int = 3, graph: nx.DiGr
         k = min(num_stations, N)  # number of stations
         
         # Generate station sizes using dirichlet distribution
-        rng = np.random.default_rng(42)  # fixed seed for reproducibility
+        # Use provided seed for dataset-specific variation
+        rng = np.random.default_rng(seed)
         shares = rng.dirichlet([alpha] * k)
         sizes = np.maximum(1, np.round(shares * N)).astype(int)
         sizes[-1] = N - sizes[:-1].sum()  # fix rounding drift
