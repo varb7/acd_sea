@@ -18,10 +18,7 @@ from importlib.resources import files
 from pandas.api.types import is_integer_dtype, is_categorical_dtype, is_float_dtype
 
 # Import shared CI test selector
-try:
-    from src.acd_sea.utils.tetrad_ci_tests import TetradCITestSelector
-except ImportError:
-    from utils.tetrad_ci_tests import TetradCITestSelector
+from acd_sea.utils.tetrad_ci_tests import TetradCITestSelector
 
 class TetradBossFCI:
     """
@@ -62,9 +59,13 @@ class TetradBossFCI:
         self.max_path_length = kwargs.get("max_path_length", -1)
         
         # Create CI test selector
+        ci_test_params = {
+            k: v for k, v in kwargs.items() 
+            if k in ["linear_gap_threshold", "gaussian_p_threshold", "max_pairs_for_diag", "max_parents_for_diag"]
+        }
         self.ci_selector = TetradCITestSelector(
             alpha=self.alpha,
-            **{k: v for k, v in kwargs.items() if k.startswith(("linear_", "gaussian_", "max_"))}
+            **ci_test_params
         )
         
         self._ensure_jvm()
@@ -106,10 +107,67 @@ class TetradBossFCI:
         """Detect categorical and continuous columns."""
         return self.ci_selector.detect_data_types(df)
 
+    def _handle_perfect_correlations(self, df: pd.DataFrame, cont_cols: list, threshold: float = 0.9999):
+        """
+        Remove columns that are perfectly correlated to avoid singular correlation matrices.
+        
+        Parameters:
+        -----------
+        df : pd.DataFrame
+            Input dataframe
+        cont_cols : list
+            List of continuous column names
+        threshold : float
+            Correlation threshold above which columns are considered perfectly correlated
+            
+        Returns:
+        --------
+        tuple: (cleaned_df, removed_columns)
+        """
+        if len(cont_cols) < 2:
+            return df, []
+            
+        df_cont = df[cont_cols]
+        corr_matrix = df_cont.corr().abs()
+        
+        # Find pairs with correlation above threshold
+        removed_cols = []
+        remaining_cols = list(cont_cols)
+        
+        for i in range(len(cont_cols)):
+            if cont_cols[i] not in remaining_cols:
+                continue
+                
+            for j in range(i + 1, len(cont_cols)):
+                if cont_cols[j] not in remaining_cols:
+                    continue
+                    
+                if corr_matrix.iloc[i, j] > threshold:
+                    # Remove the second column in the pair
+                    col_to_remove = cont_cols[j]
+                    if col_to_remove in remaining_cols:
+                        remaining_cols.remove(col_to_remove)
+                        removed_cols.append(col_to_remove)
+                        print(f"[INFO] Removing column '{col_to_remove}' (corr={corr_matrix.iloc[i, j]:.6f} with '{cont_cols[i]}')")
+        
+        if removed_cols:
+            df_cleaned = df.drop(columns=removed_cols)
+            return df_cleaned, removed_cols
+        else:
+            return df, []
+
     def _convert_to_tetrad_format(self, df: pd.DataFrame):
         """Convert pandas DataFrame to Tetrad dataset."""
         df = df.copy()
         cats, cont = self._detect_data_types(df)
+        
+        # Handle perfect correlations that cause singular matrices
+        df, removed_cols = self._handle_perfect_correlations(df, cont)
+        if removed_cols:
+            print(f"[WARNING] Removed {len(removed_cols)} perfectly correlated columns: {removed_cols}")
+            # Update column type lists after removal
+            cats = [c for c in cats if c in df.columns]
+            cont = [c for c in cont if c in df.columns]
         
         # Run diagnostics
         diagnostics = self.ci_selector.assess_global_diagnostics(df, cats, cont)

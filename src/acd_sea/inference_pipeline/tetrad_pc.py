@@ -12,10 +12,7 @@ import jpype, jpype.imports
 from importlib.resources import files
 
 # Import shared CI test selector
-try:
-    from src.acd_sea.utils.tetrad_ci_tests import TetradCITestSelector
-except ImportError:
-    from utils.tetrad_ci_tests import TetradCITestSelector
+from acd_sea.utils.tetrad_ci_tests import TetradCITestSelector
 
 class TetradPC:
     def __init__(self, **kwargs):
@@ -26,9 +23,13 @@ class TetradPC:
         self.prior_knowledge = kwargs.get("prior_knowledge", None)
         
         # Create CI test selector
+        ci_test_params = {
+            k: v for k, v in kwargs.items() 
+            if k in ["linear_gap_threshold", "gaussian_p_threshold", "max_pairs_for_diag", "max_parents_for_diag"]
+        }
         self.ci_selector = TetradCITestSelector(
             alpha=self.alpha,
-            **{k: v for k, v in kwargs.items() if k.startswith(("linear_", "gaussian_", "max_"))}
+            **ci_test_params
         )
         
         self._ensure_jvm(); self._import_tetrad_modules()

@@ -1,0 +1,146 @@
+# Comprehensive Experiment Grid for CSuite Evaluation
+# =====================================================
+# Balanced factorial design for studying causal discovery algorithm performance
+# 
+# Research Goals:
+#   1. Show how factors (density, noise, linearity, distribution) impact performance
+#   2. Compare algorithm robustness across challenging conditions
+#   3. Demonstrate value of prior knowledge in different scenarios
+#
+# Design Rationale:
+#   - Fixed size (10 nodes): Focus on factor effects, not scalability
+#   - Fixed samples (1000): Sufficient for all algorithms
+#   - 3 seeds: Enables confidence intervals and significance tests
+#   - Full factorial on key factors: Enables interaction analysis
+#
+# =============================================================================
+# USAGE: For precise dataset count, use the SPLIT configs instead:
+# =============================================================================
+#
+#   # Generate fixed-pattern datasets (144 datasets)
+#   python generate_csuite_grid.py --config experiment_grid_comprehensive_fixed.yaml
+#
+#   # Generate random DAG datasets (216 datasets)
+#   python generate_csuite_grid.py --config experiment_grid_comprehensive_random.yaml
+#
+# This combined config produces MORE datasets because edge_densities apply to all patterns.
+# Use the split configs for exact 360 datasets.
+#
+# =============================================================================
+
+output_dir: csuite_comprehensive
+train_ratio: 0.8
+num_stations: 3
+seed: 42
+
+# =============================================================================
+# PHASE 3: Full Factorial Experiment
+# =============================================================================
+# This single phase3 block handles all experimental conditions.
+# The generator iterates over all combinations of:
+#   patterns × edge_densities × equation_types × var_types × 
+#   root_distributions × noise_configs × samples × seeds
+
+phase3:
+  # FIXED PARAMETERS
+  sizes: [10]
+  samples: [1000]
+  seeds: 3  # Enough for confidence intervals
+  
+  # STRUCTURAL FACTORS
+  # Include both fixed patterns (chain, backdoor) and random_dag
+  patterns: [chain, backdoor, random_dag]
+  
+  # Edge density only affects random_dag pattern
+  # For chain/backdoor, the generator ignores this (structure is fixed)
+  edge_densities: [0.2, 0.5, 0.8]
+  
+  # FUNCTIONAL FACTORS
+  equation_types: [linear, non_linear]
+  var_types: [continuous, mixed]
+  
+  # DISTRIBUTIONAL FACTORS - Root Node Distributions
+  root_distributions:
+    # Baseline: Standard Gaussian (optimal for most algorithms)
+    - type: normal
+      params:
+        mean: 0.0
+        std: 1.0
+    # Challenge: Skewed/heavy-tailed (violates symmetry assumptions)
+    - type: exponential
+      params:
+        scale: 1.5
+  
+  # NOISE CONFIGURATIONS
+  noise_configs:
+    # Baseline: Low Gaussian noise (ideal conditions)
+    - type: normal
+      params:
+        mean: 0.0
+        std: 0.5
+    # Challenge: Bounded uniform noise (violates Gaussian assumption)
+    - type: uniform
+      params:
+        low: -1.0
+        high: 1.0
+    # Challenge: Skewed noise (violates symmetry)
+    - type: exponential
+      params:
+        scale: 0.5
+  
+  # Mixed variable configuration (applies when var_type=mixed)
+  mixed_config:
+    root_categorical: true
+    root_num_classes: 3
+    nonroot_categorical_pct: 0.3
+    nonroot_categorical_num_classes: 3
+
+# =============================================================================
+# DATASET COUNT BREAKDOWN
+# =============================================================================
+#
+# For FIXED patterns (chain, backdoor):
+#   edge_densities are ignored (structure is predetermined)
+#   2 patterns × 1 density × 2 eq × 2 var × 2 dist × 3 noise × 3 seeds = 144
+#
+# For RANDOM_DAG pattern:
+#   edge_densities are applied
+#   1 pattern × 3 densities × 2 eq × 2 var × 2 dist × 3 noise × 3 seeds = 216
+#
+# TOTAL: 144 + 216 = 360 datasets
+#
+# However, the current generator applies edge_densities to ALL patterns.
+# To get exact 360 datasets, you may need to run two separate configs or
+# modify the generator. Current config will produce:
+#   3 patterns × 3 densities × 2 eq × 2 var × 2 dist × 3 noise × 3 seeds = 648
+#
+# See the alternative split config below if you want exact 360 datasets.
+
+# =============================================================================
+# ANALYSIS GUIDE
+# =============================================================================
+# 
+# After running experiments, analyze using these groupings:
+#
+# 1. MAIN EFFECTS (one-way comparisons):
+#    - By equation_type: Compare linear vs non_linear (all else aggregated)
+#    - By noise_type: Compare normal vs uniform vs exponential
+#    - By root_distribution: Compare normal vs exponential
+#    - By var_type: Compare continuous vs mixed
+#    - By edge_density: Compare 0.2 vs 0.5 vs 0.8 (random_dag only)
+#    - By pattern: Compare chain vs backdoor vs random_dag
+#
+# 2. INTERACTIONS (two-way comparisons):
+#    - equation_type × noise_type: Does noise hurt more for non-linear?
+#    - edge_density × algorithm: Which algorithms handle dense graphs?
+#    - pattern × prior_knowledge: Does prior help more on complex patterns?
+#
+# 3. ALGORITHM ROBUSTNESS:
+#    - Compute: robustness = F1(challenging) / F1(baseline)
+#    - Baseline = linear, normal noise, normal dist, continuous
+#    - Challenging = any non-baseline level
+#
+# 4. PRIOR KNOWLEDGE EFFECTIVENESS:
+#    - Compute: prior_gain = F1(with_prior) - F1(without_prior)
+#    - Stratify by factor levels to find where prior helps most
+

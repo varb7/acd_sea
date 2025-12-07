@@ -55,6 +55,21 @@ def load_config(config_path: str = None) -> Dict[str, Any]:
     }
 
 
+def _normalize_range(value: Any) -> list:
+    """
+    Convert a list of values to [min, max] range format.
+    If already a 2-element list, return as-is.
+    If a longer list, return [min, max] of the list.
+    """
+    if not isinstance(value, list):
+        return value
+    if len(value) == 2:
+        return value
+    if len(value) > 2:
+        return [min(value), max(value)]
+    return value
+
+
 def _normalize_config(raw: Dict[str, Any] | None) -> Dict[str, Any]:
     """
     Translate structured configs into the flat schema expected by the generator
@@ -72,17 +87,23 @@ def _normalize_config(raw: Dict[str, Any] | None) -> Dict[str, Any]:
 
     graph = raw.get("graph_structure", {})
     if "nodes_range" not in config:
-        config["nodes_range"] = graph.get("num_nodes_range", config.get("nodes_range"))
+        nodes_val = graph.get("num_nodes_range", config.get("nodes_range"))
+        config["nodes_range"] = _normalize_range(nodes_val)
     if "root_percentage_range" not in config:
-        config["root_percentage_range"] = graph.get("root_nodes_percentage_range", config.get("root_percentage_range"))
+        root_val = graph.get("root_nodes_percentage_range", config.get("root_percentage_range"))
+        config["root_percentage_range"] = _normalize_range(root_val)
     if "edge_density_range" not in config:
-        config["edge_density_range"] = graph.get("edges_density_range", config.get("edge_density_range"))
+        edge_val = graph.get("edges_density_range", config.get("edge_density_range"))
+        config["edge_density_range"] = _normalize_range(edge_val)
 
     data_generation = raw.get("data_generation", {})
     if "samples_range" not in config:
-        config["samples_range"] = data_generation.get("num_samples_range", config.get("samples_range"))
+        samples_val = data_generation.get("num_samples_range", config.get("samples_range"))
+        config["samples_range"] = _normalize_range(samples_val)
     if "num_samples" not in config and "default_num_samples" in data_generation:
         config["num_samples"] = data_generation["default_num_samples"]
+    if "relationship_mix" not in config and "relationship_mix" in data_generation:
+        config["relationship_mix"] = data_generation["relationship_mix"]
 
     manufacturing = raw.get("manufacturing", {})
     if "categorical_percentage" not in config:

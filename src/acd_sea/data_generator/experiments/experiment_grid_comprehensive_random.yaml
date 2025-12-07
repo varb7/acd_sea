@@ -1,0 +1,55 @@
+# Comprehensive Experiment Grid - RANDOM DAG with Density Variation
+# ==================================================================
+# Part 2 of 2: Random DAG pattern where edge density is a key factor
+#
+# Dataset Count: 1 pattern × 3 densities × 2 eq × 2 var × 2 dist × 3 noise × 3 seeds = 216
+
+output_dir: csuite_comprehensive
+train_ratio: 0.8
+num_stations: 3
+seed: 42
+
+phase3:
+  # FIXED PARAMETERS
+  sizes: [10]
+  samples: [1000]
+  seeds: 3
+  
+  # RANDOM DAG PATTERN with density variation
+  patterns: [random_dag]
+  edge_densities: [0.2, 0.5, 0.8]  # Sparse → Medium → Dense
+  
+  # FUNCTIONAL FACTORS
+  equation_types: [linear, non_linear]
+  var_types: [continuous, mixed]
+  
+  # DISTRIBUTIONAL FACTORS
+  root_distributions:
+    - type: normal
+      params:
+        mean: 0.0
+        std: 1.0
+    - type: exponential
+      params:
+        scale: 1.5
+  
+  # NOISE CONFIGURATIONS
+  noise_configs:
+    - type: normal
+      params:
+        mean: 0.0
+        std: 0.5
+    - type: uniform
+      params:
+        low: -1.0
+        high: 1.0
+    - type: exponential
+      params:
+        scale: 0.5
+  
+  mixed_config:
+    root_categorical: true
+    root_num_classes: 3
+    nonroot_categorical_pct: 0.3
+    nonroot_categorical_num_classes: 3
+

@@ -14,10 +14,7 @@ from importlib.resources import files
 from pandas.api.types import is_integer_dtype, is_categorical_dtype, is_float_dtype
 
 # Import shared CI test selector
-try:
-    from src.acd_sea.utils.tetrad_ci_tests import TetradCITestSelector
-except ImportError:
-    from utils.tetrad_ci_tests import TetradCITestSelector
+from acd_sea.utils.tetrad_ci_tests import TetradCITestSelector
 
 class TetradCFCI:
     def __init__(self, **kwargs):
@@ -26,9 +23,13 @@ class TetradCFCI:
         self.include_undirected = kwargs.get("include_undirected", True)
         
         # Create CI test selector
+        ci_test_params = {
+            k: v for k, v in kwargs.items() 
+            if k in ["linear_gap_threshold", "gaussian_p_threshold", "max_pairs_for_diag", "max_parents_for_diag"]
+        }
         self.ci_selector = TetradCITestSelector(
             alpha=self.alpha,
-            **{k: v for k, v in kwargs.items() if k.startswith(("linear_", "gaussian_", "max_"))}
+            **ci_test_params
         )
         
         self._ensure_jvm(); self._import_tetrad_modules()

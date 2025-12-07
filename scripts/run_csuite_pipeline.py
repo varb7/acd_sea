@@ -128,7 +128,6 @@ def run_experiments(index_path: str = None, results_path: str = None, with_prior
     ]
     
     print(f"\nRunning: {' '.join(cmd)}")
-    print(f"\nRunning: {' '.join(cmd)}")
     result = subprocess.run(cmd, cwd=str(inference_dir.parent.parent.parent))
     
     if result.returncode == 0:
@@ -176,7 +175,6 @@ def run_analyze(results_path: str = None):
     
     cmd = [sys.executable, str(script), "--results-file", results_path]
     
-    print(f"\nRunning: {' '.join(cmd)}")
     print(f"\nRunning: {' '.join(cmd)}")
     result = subprocess.run(cmd, cwd=str(inference_dir.parent.parent.parent))
     

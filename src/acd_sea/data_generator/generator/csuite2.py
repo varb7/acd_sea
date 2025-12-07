@@ -234,7 +234,11 @@ def generate_data_with_scdg(G: nx.DiGraph,
                             root_normal_mean: float = 0.0,
                             root_normal_std: float = 1.0,
                             nonroot_categorical_pct: float = 0.0,
-                            nonroot_categorical_num_classes: int = 3) -> pd.DataFrame:
+                            nonroot_categorical_num_classes: int = 3,
+                            root_distribution_type: str = None,
+                            root_distribution_params: Dict = None,
+                            default_noise_type: str = None,
+                            default_noise_params: Dict = None) -> pd.DataFrame:
     cdg = CausalDataGenerator(num_samples=num_samples, seed=seed)
     cdg.G = G.copy()
     # Recompute roots from the graph to ensure consistency with SCDG
@@ -246,9 +250,31 @@ def generate_data_with_scdg(G: nx.DiGraph,
     for r in graph_roots:
         if root_categorical:
             root_distributions[r] = {"dist": "categorical", "num_classes": int(root_num_classes)}
+        elif root_distribution_type:
+            # Use custom distribution type if specified
+            dist_config = {"dist": root_distribution_type}
+            if root_distribution_params:
+                dist_config.update(root_distribution_params)
+            root_distributions[r] = dist_config
         else:
             root_distributions[r] = {"dist": "normal", "mean": float(root_normal_mean), "std": float(root_normal_std)}
     cdg.set_root_distributions(root_distributions)
+    
+    # Set custom noise for all non-root nodes if specified
+    if default_noise_type and default_noise_params:
+        non_root_nodes = [n for n in G.nodes if n not in graph_roots]
+        if non_root_nodes:
+            noise_config = {}
+            for node in non_root_nodes:
+                noise_config[node] = {
+                    "type": default_noise_type,
+                    "params": default_noise_params
+                }
+            try:
+                cdg.set_noise_for_nodes(noise_config)
+            except Exception:
+                # Fallback if set_noise_for_nodes fails
+                pass
 
     # Optionally flip a percentage of non-root nodes to nominal (categorical)
     if nonroot_categorical_pct and nonroot_categorical_pct > 0:
@@ -320,6 +346,12 @@ def generate_csuite2_dataset(config: Dict) -> Tuple[pd.DataFrame, Dict, nx.DiGra
     nonroot_categorical_pct = float(config.get("nonroot_categorical_pct", 0.0))
     nonroot_categorical_num_classes = int(config.get("nonroot_categorical_num_classes", 3))
 
+    # Custom distribution controls (for Phase 3 experiments)
+    root_distribution_type = config.get("root_distribution_type", None)
+    root_distribution_params = config.get("root_distribution_params", None)
+    default_noise_type = config.get("default_noise_type", None)
+    default_noise_params = config.get("default_noise_params", None)
+
     df = generate_data_with_scdg(
         G,
         meta["root_nodes"],
@@ -332,6 +364,10 @@ def generate_csuite2_dataset(config: Dict) -> Tuple[pd.DataFrame, Dict, nx.DiGra
         root_normal_std=root_normal_std,
         nonroot_categorical_pct=nonroot_categorical_pct,
         nonroot_categorical_num_classes=nonroot_categorical_num_classes,
+        root_distribution_type=root_distribution_type,
+        root_distribution_params=root_distribution_params,
+        default_noise_type=default_noise_type,
+        default_noise_params=default_noise_params,
     )
     validate_df(df)
 
@@ -339,6 +375,13 @@ def generate_csuite2_dataset(config: Dict) -> Tuple[pd.DataFrame, Dict, nx.DiGra
     df = df[st["temporal_order"]]
 
     metadata = {**meta, **st, "seed": seed, "num_samples": num_samples, "edge_density": config.get("edge_density", "N/A")}
+    # Add distribution and noise metadata for analysis
+    if root_distribution_type:
+        metadata["root_distribution_type"] = root_distribution_type
+        metadata["root_distribution_params"] = str(root_distribution_params) if root_distribution_params else ""
+    if default_noise_type:
+        metadata["noise_type"] = default_noise_type
+        metadata["noise_params"] = str(default_noise_params) if default_noise_params else ""
     return df, metadata, G
 
 

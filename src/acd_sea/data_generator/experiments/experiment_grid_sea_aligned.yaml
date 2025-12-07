@@ -1,0 +1,39 @@
+# experiment_grid_sea_aligned.yaml
+# Matches SEA Framework operating conditions exactly
+
+output_dir: csuite_sea_aligned
+train_ratio: 0.8
+num_stations: 3
+seed: 42
+
+phase3:
+  # MATCH SEA FRAMEWORK RANGES
+  sizes: [5, 6, 7, 8, 9, 10]  # Full SEA range
+  samples: [500, 750, 1000]   # Cover the typical operating range
+  seeds: 3
+  
+  # Use random_dag since that's what SEA generates
+  patterns: [random_dag]
+  edge_densities: [0.3, 0.5, 0.7]  # Typical manufacturing densities
+  
+  # Keep the factors you want to study
+  equation_types: [linear, non_linear]
+  var_types: [continuous, mixed]
+  
+  root_distributions:
+    - type: normal
+      params: {mean: 0.0, std: 1.0}
+    - type: exponential
+      params: {scale: 1.5}
+  
+  noise_configs:
+    - type: normal
+      params: {mean: 0.0, std: 0.5}
+    - type: uniform
+      params: {low: -1.0, high: 1.0}
+  
+  mixed_config:
+    root_categorical: true
+    root_num_classes: 3
+    nonroot_categorical_pct: 0.3
+    nonroot_categorical_num_classes: 3

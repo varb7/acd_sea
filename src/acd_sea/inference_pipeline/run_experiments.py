@@ -13,7 +13,13 @@ registered algorithms twice: without prior and with prior knowledge derived
 from metadata. Results are appended to a single CSV.
 """
 
+# Add the src directory to Python path for imports
+import sys
 from pathlib import Path
+script_dir = Path(__file__).parent
+src_dir = script_dir.parent.parent
+sys.path.insert(0, str(src_dir))
+
 import argparse
 import os
 import pickle
@@ -23,12 +29,8 @@ from typing import Dict, List
 import numpy as np
 import pandas as pd
 
-try:
-    from utils.algorithms import AlgorithmRegistry, compute_metrics
-    from utils.prior_knowledge import format_prior_knowledge_for_algorithm
-except ImportError:
-    from inference_pipeline.utils.algorithms import AlgorithmRegistry, compute_metrics
-    from inference_pipeline.utils.prior_knowledge import format_prior_knowledge_for_algorithm
+from acd_sea.inference_pipeline.utils.algorithms import AlgorithmRegistry, compute_metrics
+from acd_sea.inference_pipeline.utils.prior_knowledge import format_prior_knowledge_for_algorithm
 
 
 def _normalize_columns(columns: List[str]) -> List[str]:

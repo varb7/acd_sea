@@ -23,37 +23,36 @@ REX_AVAILABLE = False
 # Tetrad algorithms (robust import for core modules only)
 TETRAD_AVAILABLE = False
 try:
-    from tetrad_rfci import TetradRFCI
-    from tetrad_fges import TetradFGES
+    from acd_sea.inference_pipeline.tetrad_rfci import TetradRFCI
+    from acd_sea.inference_pipeline.tetrad_fges import TetradFGES
     TETRAD_AVAILABLE = True
 except ImportError:
-    try:
-        from inference_pipeline.tetrad_rfci import TetradRFCI
-        from inference_pipeline.tetrad_fges import TetradFGES
-        TETRAD_AVAILABLE = True
-    except ImportError:
-        TETRAD_AVAILABLE = False
-        print("[WARNING] Tetrad core algorithms not available - tetrad_rfci/ tetrad_fges modules not found")
+    TETRAD_AVAILABLE = False
+    print("[WARNING] Tetrad core algorithms not available - tetrad_rfci/ tetrad_fges modules not found")
 
 # FCI Variants (BOSS-FCI, GRaSP-FCI, SP-FCI) - robust import
 FCI_VARIANTS_AVAILABLE = False
 try:
-    from tetrad_boss_fci import TetradBossFCI
-    from tetrad_grasp_fci import TetradGraspFCI
-    from tetrad_sp_fci import TetradSpFCI
+    from acd_sea.inference_pipeline.tetrad_boss_fci import TetradBossFCI
+    from acd_sea.inference_pipeline.tetrad_grasp_fci import TetradGraspFCI
+    from acd_sea.inference_pipeline.tetrad_sp_fci import TetradSpFCI
     FCI_VARIANTS_AVAILABLE = True
-except ImportError:
-    try:
-        from inference_pipeline.tetrad_boss_fci import TetradBossFCI
-        from inference_pipeline.tetrad_grasp_fci import TetradGraspFCI
-        from inference_pipeline.tetrad_sp_fci import TetradSpFCI
-        FCI_VARIANTS_AVAILABLE = True
-    except ImportError as e:
-        FCI_VARIANTS_AVAILABLE = False
-        print(f"[INFO] FCI variants not available: {e}")
+except ImportError as e:
+    FCI_VARIANTS_AVAILABLE = False
+    print(f"[INFO] FCI variants not available: {e}")
 
 # Optional external algorithms (BOSS, TXGES) removed - not used in current pipeline
 
+# Causal-learn algorithms (GES and FCI baselines for comparison)
+CAUSALLEARN_AVAILABLE = False
+try:
+    from causallearn.search.ScoreBased.GES import ges as causallearn_ges
+    from causallearn.search.ConstraintBased.FCI import fci as causallearn_fci
+    from causallearn.graph.GraphClass import CausalGraph
+    CAUSALLEARN_AVAILABLE = True
+except ImportError as e:
+    CAUSALLEARN_AVAILABLE = False
+    print(f"[INFO] Causal-learn algorithms not available: {e}")
 
 
 @dataclass
@@ -291,10 +290,7 @@ class AlgorithmRegistry:
                     df = pd.DataFrame(data, columns=columns)
                     return df, { 'original_shape': data.shape, 'columns': columns }
                 def _run_algorithm(self, preprocessed_data: pd.DataFrame, metadata: Dict[str, Any]) -> np.ndarray:
-                    try:
-                        from tetrad_gfci import run_gfci
-                    except ImportError:
-                        from inference_pipeline.tetrad_gfci import run_gfci
+                    from acd_sea.inference_pipeline.tetrad_gfci import run_gfci
                     prior = None
                     if self.use_prior_knowledge and self.prior_knowledge:
                         prior = self.prior_knowledge
@@ -318,10 +314,7 @@ class AlgorithmRegistry:
                     df = pd.DataFrame(data, columns=columns)
                     return df, { 'original_shape': data.shape, 'columns': columns }
                 def _run_algorithm(self, preprocessed_data: pd.DataFrame, metadata: Dict[str, Any]) -> np.ndarray:
-                    try:
-                        from tetrad_cpc import run_cpc
-                    except ImportError:
-                        from inference_pipeline.tetrad_cpc import run_cpc
+                    from acd_sea.inference_pipeline.tetrad_cpc import run_cpc
                     prior = None
                     if self.use_prior_knowledge and self.prior_knowledge:
                         prior = self.prior_knowledge
@@ -345,10 +338,7 @@ class AlgorithmRegistry:
                     df = pd.DataFrame(data, columns=columns)
                     return df, { 'original_shape': data.shape, 'columns': columns }
                 def _run_algorithm(self, preprocessed_data: pd.DataFrame, metadata: Dict[str, Any]) -> np.ndarray:
-                    try:
-                        from tetrad_cfci import run_cfci
-                    except ImportError:
-                        from inference_pipeline.tetrad_cfci import run_cfci
+                    from acd_sea.inference_pipeline.tetrad_cfci import run_cfci
                     prior = None
                     if self.use_prior_knowledge and self.prior_knowledge:
                         prior = self.prior_knowledge
@@ -375,10 +365,7 @@ class AlgorithmRegistry:
                     df = pd.DataFrame(data, columns=columns)
                     return df, { 'original_shape': data.shape, 'columns': columns }
                 def _run_algorithm(self, preprocessed_data: pd.DataFrame, metadata: Dict[str, Any]) -> np.ndarray:
-                    try:
-                        from tetrad_fci import run_fci
-                    except ImportError:
-                        from inference_pipeline.tetrad_fci import run_fci
+                    from acd_sea.inference_pipeline.tetrad_fci import run_fci
                     prior = None
                     if self.use_prior_knowledge and self.prior_knowledge:
                         prior = self.prior_knowledge
@@ -402,10 +389,7 @@ class AlgorithmRegistry:
                     df = pd.DataFrame(data, columns=columns)
                     return df, { 'original_shape': data.shape, 'columns': columns }
                 def _run_algorithm(self, preprocessed_data: pd.DataFrame, metadata: Dict[str, Any]) -> np.ndarray:
-                    try:
-                        from tetrad_fci_max import run_fci_max
-                    except ImportError:
-                        from inference_pipeline.tetrad_fci_max import run_fci_max
+                    from acd_sea.inference_pipeline.tetrad_fci_max import run_fci_max
                     prior = None
                     if self.use_prior_knowledge and self.prior_knowledge:
                         prior = self.prior_knowledge
@@ -430,10 +414,7 @@ class AlgorithmRegistry:
                     df = pd.DataFrame(data, columns=columns)
                     return df, {'original_shape': data.shape, 'columns': columns}
                 def _run_algorithm(self, preprocessed_data: pd.DataFrame, metadata: Dict[str, Any]) -> np.ndarray:
-                    try:
-                        from tetrad_pc import TetradPC
-                    except ImportError:
-                        from inference_pipeline.tetrad_pc import TetradPC
+                    from acd_sea.inference_pipeline.tetrad_pc import TetradPC
                     prior = None
                     if self.use_prior_knowledge and self.prior_knowledge:
                         prior = self.prior_knowledge
@@ -467,10 +448,7 @@ class AlgorithmRegistry:
                         df = pd.DataFrame(data, columns=columns)
                         return df, {'original_shape': data.shape, 'columns': columns}
                     def _run_algorithm(self, preprocessed_data: pd.DataFrame, metadata: Dict[str, Any]) -> np.ndarray:
-                        try:
-                            from tetrad_boss_fci import TetradBossFCI
-                        except ImportError:
-                            from inference_pipeline.tetrad_boss_fci import TetradBossFCI
+                        from acd_sea.inference_pipeline.tetrad_boss_fci import TetradBossFCI
                         prior = None
                         if self.use_prior_knowledge and self.prior_knowledge:
                             prior = self.prior_knowledge
@@ -506,10 +484,7 @@ class AlgorithmRegistry:
                         df = pd.DataFrame(data, columns=columns)
                         return df, {'original_shape': data.shape, 'columns': columns}
                     def _run_algorithm(self, preprocessed_data: pd.DataFrame, metadata: Dict[str, Any]) -> np.ndarray:
-                        try:
-                            from tetrad_grasp_fci import TetradGraspFCI
-                        except ImportError:
-                            from inference_pipeline.tetrad_grasp_fci import TetradGraspFCI
+                        from acd_sea.inference_pipeline.tetrad_grasp_fci import TetradGraspFCI
                         prior = None
                         if self.use_prior_knowledge and self.prior_knowledge:
                             prior = self.prior_knowledge
@@ -550,10 +525,7 @@ class AlgorithmRegistry:
                             print(f"[WARNING] TetradSpFCI skipped: {num_vars} variables exceeds limit of 11")
                             return np.zeros((num_vars, num_vars))
                         
-                        try:
-                            from tetrad_sp_fci import TetradSpFCI
-                        except ImportError:
-                            from inference_pipeline.tetrad_sp_fci import TetradSpFCI
+                        from acd_sea.inference_pipeline.tetrad_sp_fci import TetradSpFCI
                         prior = None
                         if self.use_prior_knowledge and self.prior_knowledge:
                             prior = self.prior_knowledge
@@ -572,6 +544,148 @@ class AlgorithmRegistry:
                 self.register_algorithm(TetradSpFCIAlgorithm())
             except Exception as e:
                 print(f"[WARNING] Could not register TetradSpFCI: {e}")
+
+        # =====================================================================
+        # Causal-Learn Baseline Algorithms (GES and FCI)
+        # These are included for comparison against PyTetrad variants
+        # =====================================================================
+        if CAUSALLEARN_AVAILABLE:
+            # Causal-Learn GES (baseline for comparison with TetradFGES)
+            try:
+                class CausalLearnGESAlgorithm(BaseAlgorithm):
+                    """Causal-learn GES implementation for baseline comparison."""
+                    def __init__(self, **kwargs):
+                        super().__init__("CausalLearnGES", **kwargs)
+                        self.score_func = kwargs.get('score_func', 'local_score_BIC')
+                        self.maxP = kwargs.get('maxP', None)
+                    
+                    def _preprocess(self, data: np.ndarray, columns: list):
+                        return data, {'original_shape': data.shape, 'columns': columns}
+                    
+                    def _run_algorithm(self, preprocessed_data: np.ndarray, metadata: Dict[str, Any]) -> np.ndarray:
+                        try:
+                            print(f"[INFO] Starting CausalLearn GES with score_func={self.score_func}...")
+                            result = causallearn_ges(
+                                preprocessed_data,
+                                score_func=self.score_func,
+                                maxP=self.maxP,
+                                node_names=metadata.get('columns')
+                            )
+                            # Extract adjacency matrix from result
+                            # GES returns a dict with 'G' key containing the graph
+                            G = result.get('G', None)
+                            if G is None:
+                                print("[WARNING] CausalLearn GES returned no graph")
+                                return np.zeros((preprocessed_data.shape[1], preprocessed_data.shape[1]))
+                            
+                            # Convert GeneralGraph to adjacency matrix
+                            adj_matrix = np.zeros((preprocessed_data.shape[1], preprocessed_data.shape[1]))
+                            nodes = G.get_nodes()
+                            node_map = {node.get_name(): i for i, node in enumerate(nodes)}
+                            
+                            for edge in G.get_graph_edges():
+                                node1 = edge.get_node1().get_name()
+                                node2 = edge.get_node2().get_name()
+                                i, j = node_map.get(node1), node_map.get(node2)
+                                if i is not None and j is not None:
+                                    # Check edge type for direction
+                                    endpoint1 = str(edge.get_endpoint1())
+                                    endpoint2 = str(edge.get_endpoint2())
+                                    # Arrow means directed: node1 -> node2 if endpoint2 is ARROW
+                                    if endpoint2 == 'ARROW':
+                                        adj_matrix[i, j] = 1
+                                    if endpoint1 == 'ARROW':
+                                        adj_matrix[j, i] = 1
+                                    # If both TAIL, treat as undirected (add both directions)
+                                    if endpoint1 == 'TAIL' and endpoint2 == 'TAIL':
+                                        adj_matrix[i, j] = 1
+                                        adj_matrix[j, i] = 1
+                            
+                            print(f"[INFO] CausalLearn GES completed. Edges found: {int(adj_matrix.sum())}")
+                            return adj_matrix
+                        except Exception as e:
+                            print(f"[ERROR] CausalLearn GES failed: {e}")
+                            import traceback
+                            traceback.print_exc()
+                            return np.zeros((preprocessed_data.shape[1], preprocessed_data.shape[1]))
+                    
+                    def _postprocess(self, raw_output: np.ndarray, original_shape: Tuple[int, int], metadata: Dict[str, Any]) -> np.ndarray:
+                        if raw_output is None or np.any(np.isnan(raw_output)):
+                            return np.zeros((original_shape[1], original_shape[1]))
+                        out = (raw_output != 0).astype(int)
+                        return out if out.shape == (original_shape[1], original_shape[1]) else np.zeros((original_shape[1], original_shape[1]))
+                
+                self.register_algorithm(CausalLearnGESAlgorithm())
+            except Exception as e:
+                print(f"[WARNING] Could not register CausalLearnGES: {e}")
+
+            # Causal-Learn FCI (baseline for comparison with TetradFCI variants)
+            try:
+                class CausalLearnFCIAlgorithm(BaseAlgorithm):
+                    """Causal-learn FCI implementation for baseline comparison."""
+                    def __init__(self, **kwargs):
+                        super().__init__("CausalLearnFCI", **kwargs)
+                        self.alpha = kwargs.get('alpha', 0.05)
+                        self.depth = kwargs.get('depth', -1)
+                        self.independence_test = kwargs.get('independence_test', 'fisherz')
+                    
+                    def _preprocess(self, data: np.ndarray, columns: list):
+                        return data, {'original_shape': data.shape, 'columns': columns}
+                    
+                    def _run_algorithm(self, preprocessed_data: np.ndarray, metadata: Dict[str, Any]) -> np.ndarray:
+                        try:
+                            print(f"[INFO] Starting CausalLearn FCI with alpha={self.alpha}, depth={self.depth}...")
+                            G, edges = causallearn_fci(
+                                preprocessed_data,
+                                independence_test_method=self.independence_test,
+                                alpha=self.alpha,
+                                depth=self.depth,
+                                verbose=False,
+                                show_progress=False,
+                                node_names=metadata.get('columns')
+                            )
+                            
+                            # Convert Graph to adjacency matrix
+                            adj_matrix = np.zeros((preprocessed_data.shape[1], preprocessed_data.shape[1]))
+                            nodes = G.get_nodes()
+                            node_map = {node.get_name(): i for i, node in enumerate(nodes)}
+                            
+                            for edge in G.get_graph_edges():
+                                node1 = edge.get_node1().get_name()
+                                node2 = edge.get_node2().get_name()
+                                i, j = node_map.get(node1), node_map.get(node2)
+                                if i is not None and j is not None:
+                                    endpoint1 = str(edge.get_endpoint1())
+                                    endpoint2 = str(edge.get_endpoint2())
+                                    # For FCI: ARROW means directed, CIRCLE means uncertain
+                                    # We treat ARROW as directed edge
+                                    if endpoint2 == 'ARROW':
+                                        adj_matrix[i, j] = 1
+                                    if endpoint1 == 'ARROW':
+                                        adj_matrix[j, i] = 1
+                                    # CIRCLE-CIRCLE or TAIL-TAIL: treat as undirected
+                                    if (endpoint1 in ['TAIL', 'CIRCLE'] and 
+                                        endpoint2 in ['TAIL', 'CIRCLE']):
+                                        adj_matrix[i, j] = 1
+                                        adj_matrix[j, i] = 1
+                            
+                            print(f"[INFO] CausalLearn FCI completed. Edges found: {int(adj_matrix.sum())}")
+                            return adj_matrix
+                        except Exception as e:
+                            print(f"[ERROR] CausalLearn FCI failed: {e}")
+                            import traceback
+                            traceback.print_exc()
+                            return np.zeros((preprocessed_data.shape[1], preprocessed_data.shape[1]))
+                    
+                    def _postprocess(self, raw_output: np.ndarray, original_shape: Tuple[int, int], metadata: Dict[str, Any]) -> np.ndarray:
+                        if raw_output is None or np.any(np.isnan(raw_output)):
+                            return np.zeros((original_shape[1], original_shape[1]))
+                        out = (raw_output != 0).astype(int)
+                        return out if out.shape == (original_shape[1], original_shape[1]) else np.zeros((original_shape[1], original_shape[1]))
+                
+                self.register_algorithm(CausalLearnFCIAlgorithm())
+            except Exception as e:
+                print(f"[WARNING] Could not register CausalLearnFCI: {e}")
             
     def register_algorithm(self, algorithm: BaseAlgorithm):
         """Register a new algorithm"""

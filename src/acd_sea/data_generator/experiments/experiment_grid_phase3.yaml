@@ -3,16 +3,16 @@
 # Uses SCDG capabilities for noise and distribution types
 
 # Output location for generated datasets and index.csv
-output_dir: csuite_grid_datasets_phase3
+output_dir: p3_data
 train_ratio: 0.8
 num_stations: 3
 
 phase3:
   # Focus on a subset of patterns and sizes for Phase 3
-  sizes: [5]
+  sizes: [5,10]
   patterns: [random_dag]
   edge_densities: [0.2, 0.5, 0.8]
-  samples: [500]
+  samples: [500,1000]
   seeds: 1
   var_types: [mixed]
   mixed_config:
