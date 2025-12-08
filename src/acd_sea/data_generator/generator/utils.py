@@ -61,6 +61,8 @@ def save_dataset_with_splits(dataframe, adjacency_matrix, metadata, dataset_dir,
         index_file: Index file path
         train_ratio: Ratio of data to use for training (default 0.8)
     """
+    # Normalize and ensure directory exists
+    dataset_dir = os.path.normpath(os.path.abspath(dataset_dir))
     os.makedirs(dataset_dir, exist_ok=True)
 
     # Align data columns to temporal order if provided
@@ -97,11 +99,11 @@ def save_dataset_with_splits(dataframe, adjacency_matrix, metadata, dataset_dir,
     test_df.to_csv(os.path.join(dataset_dir, f"{base_name}_test.csv"), index=False)
 
     # Save adjacency matrix
+    adj_matrix_path = os.path.join(dataset_dir, f"{base_name}_adj_matrix.csv")
+    os.makedirs(os.path.dirname(adj_matrix_path), exist_ok=True)
     pd.DataFrame(adjacency_matrix,
                  index=metadata['temporal_order'],
-                 columns=metadata['temporal_order']).to_csv(
-        os.path.join(dataset_dir, f"{base_name}_adj_matrix.csv")
-    )
+                 columns=metadata['temporal_order']).to_csv(adj_matrix_path)
 
     # Save metadata
     with open(os.path.join(dataset_dir, f"{base_name}_meta.pkl"), "wb") as f:

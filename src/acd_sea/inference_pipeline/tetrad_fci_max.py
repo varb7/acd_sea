@@ -23,7 +23,7 @@ from acd_sea.utils.tetrad_ci_tests import TetradCITestSelector
 
 class TetradFCIMax:
     def __init__(self, **kwargs):
-        self.alpha = kwargs.get("alpha", 0.01)
+        self.alpha = kwargs.get("alpha", 0.05)
         self.depth = kwargs.get("depth", -1)
         self.include_undirected = kwargs.get("include_undirected", True)
         
@@ -118,9 +118,19 @@ class TetradFCIMax:
 
     # ---------------- PAG → adjacency ----------------
     def _pag_to_adjacency_matrix(self, pag, columns: list) -> np.ndarray:
+        """
+        Convert PAG to FCI-compatible adjacency with values {-1, 0, 1, 2}.
+        
+        Values:
+            -1: Backward edge (a ← b)
+             0: No edge
+             1: Undirected edge (a — b)
+             2: Forward edge (a → b)
+        """
         n = len(columns)
         adj = np.zeros((n, n), dtype=int)
         Endpoint = self.graph.Endpoint
+
         for i, a in enumerate(columns):
             na = pag.getNode(a)
             for j, b in enumerate(columns):
@@ -130,6 +140,7 @@ class TetradFCIMax:
                 e = pag.getEdge(na, nb)
                 if e is None:
                     continue
+
                 # Map endpoints relative to (na, nb)
                 if e.getNode1() == na:
                     ea = e.getEndpoint1()
@@ -137,11 +148,23 @@ class TetradFCIMax:
                 else:
                     ea = e.getEndpoint2()
                     eb = e.getEndpoint1()
+
+                # Convert PAG endpoints to FCI-compatible values
                 if ea == Endpoint.TAIL and eb == Endpoint.ARROW:
-                    adj[i, j] = 1
-                elif self.include_undirected:
-                    adj[i, j] = 1
-                    adj[j, i] = 1
+                    adj[i, j] = 2      # a -> b (definite directed)
+                elif ea == Endpoint.ARROW and eb == Endpoint.TAIL:
+                    adj[i, j] = -1     # a <- b (definite backward)
+                elif ea == Endpoint.TAIL and eb == Endpoint.TAIL:
+                    adj[i, j] = 1      # a - b (undirected/skeleton)
+                elif ea == Endpoint.CIRCLE and eb == Endpoint.ARROW:
+                    adj[i, j] = 2      # a o-> b (partial forward, treat as directed)
+                elif ea == Endpoint.ARROW and eb == Endpoint.CIRCLE:
+                    adj[i, j] = -1     # a <-o b (partial backward)
+                elif ea == Endpoint.CIRCLE and eb == Endpoint.CIRCLE:
+                    adj[i, j] = 1      # a o-o b (fully uncertain, treat as undirected)
+                elif ea == Endpoint.ARROW and eb == Endpoint.ARROW:
+                    adj[i, j] = 1      # a <-> b (bidirected, treat as undirected)
+
         return adj
 
     # ---------------- Public API ----------------
@@ -175,7 +198,7 @@ class TetradFCIMax:
 def run_fci_max(
     data: Union[pd.DataFrame, np.ndarray],
     columns: Optional[list] = None,
-    alpha: float = 0.01,
+    alpha: float = 0.05,
     depth: int = -1,
     include_undirected: bool = True,
     prior: Optional[dict] = None,

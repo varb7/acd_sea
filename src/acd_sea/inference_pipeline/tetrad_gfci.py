@@ -8,7 +8,7 @@ from importlib.resources import files
 from pandas.api.types import is_integer_dtype, is_categorical_dtype, is_float_dtype
 
 class TetradGFCI:
-    def __init__(self, alpha: float = 0.01, depth: int = -1, penalty_discount: float = 2.0, include_undirected: bool = True, **kwargs):
+    def __init__(self, alpha: float = 0.05, depth: int = -1, penalty_discount: float = 2.0, include_undirected: bool = True, **kwargs):
         self.alpha = alpha
         self.depth = depth
         self.penalty_discount = penalty_discount
@@ -90,21 +90,53 @@ class TetradGFCI:
         return score
 
     def _graph_to_adjacency(self, g, columns):
-        n = len(columns); adj = np.zeros((n, n), dtype=int); Endpoint = self.graph.Endpoint
+        """
+        Convert PAG to FCI-compatible adjacency with values {-1, 0, 1, 2}.
+        
+        Values:
+            -1: Backward edge (a ← b)
+             0: No edge
+             1: Undirected edge (a — b)
+             2: Forward edge (a → b)
+        """
+        n = len(columns)
+        adj = np.zeros((n, n), dtype=int)
+        Endpoint = self.graph.Endpoint
+
         for i, a in enumerate(columns):
             na = g.getNode(a)
             for j, b in enumerate(columns):
-                if i == j: continue
-                nb = g.getNode(b); e = g.getEdge(na, nb)
-                if e is None: continue
+                if i == j:
+                    continue
+                nb = g.getNode(b)
+                e = g.getEdge(na, nb)
+                if e is None:
+                    continue
+
+                # Map endpoints relative to (na, nb)
                 if e.getNode1() == na:
-                    ea, eb = e.getEndpoint1(), e.getEndpoint2()
+                    ea = e.getEndpoint1()
+                    eb = e.getEndpoint2()
                 else:
-                    ea, eb = e.getEndpoint2(), e.getEndpoint1()
+                    ea = e.getEndpoint2()
+                    eb = e.getEndpoint1()
+
+                # Convert PAG endpoints to FCI-compatible values
                 if ea == Endpoint.TAIL and eb == Endpoint.ARROW:
-                    adj[i, j] = 1
-                elif self.include_undirected:
-                    adj[i, j] = 1; adj[j, i] = 1
+                    adj[i, j] = 2      # a -> b (definite directed)
+                elif ea == Endpoint.ARROW and eb == Endpoint.TAIL:
+                    adj[i, j] = -1     # a <- b (definite backward)
+                elif ea == Endpoint.TAIL and eb == Endpoint.TAIL:
+                    adj[i, j] = 1      # a - b (undirected/skeleton)
+                elif ea == Endpoint.CIRCLE and eb == Endpoint.ARROW:
+                    adj[i, j] = 2      # a o-> b (partial forward, treat as directed)
+                elif ea == Endpoint.ARROW and eb == Endpoint.CIRCLE:
+                    adj[i, j] = -1     # a <-o b (partial backward)
+                elif ea == Endpoint.CIRCLE and eb == Endpoint.CIRCLE:
+                    adj[i, j] = 1      # a o-o b (fully uncertain, treat as undirected)
+                elif ea == Endpoint.ARROW and eb == Endpoint.ARROW:
+                    adj[i, j] = 1      # a <-> b (bidirected, treat as undirected)
+
         return adj
 
     def run(self, data: Union[pd.DataFrame, np.ndarray], columns: Optional[list] = None, 
@@ -164,7 +196,7 @@ class TetradGFCI:
 def run_gfci(
     data: Union[pd.DataFrame, np.ndarray],
     columns: Optional[list] = None,
-    alpha: float = 0.01,
+    alpha: float = 0.05,
     depth: int = -1,
     include_undirected: bool = True,
     prior: Optional[dict] = None,

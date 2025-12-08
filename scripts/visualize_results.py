@@ -982,7 +982,7 @@ def main():
     parser.add_argument('--results', '-r', type=str, 
                        default='causal_discovery_results2/experiment_results.csv',
                        help='Path to results CSV file')
-    parser.add_argument('--output', '-o', type=str, default='figures',
+    parser.add_argument('--output', '-o', type=str, default='figures2',
                        help='Output directory for figures')
     parser.add_argument('--metric', '-m', type=str, default='f1_score',
                        choices=list(METRICS.keys()),

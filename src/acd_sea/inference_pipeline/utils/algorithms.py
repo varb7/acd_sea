@@ -14,6 +14,52 @@ from castle.metrics import MetricsDAG
 # Note: We only use PyTetrad algorithms in this pipeline now
 
 
+def pag_to_directed_adjacency(pag_adj: np.ndarray) -> np.ndarray:
+    """
+    Convert PAG adjacency {-1, 0, 1, 2} to directed adjacency {0, 1} for metrics comparison.
+    
+    PAG format:
+        -1: Backward edge (a ← b), meaning b → a
+         0: No edge
+         1: Undirected edge (a — b)
+         2: Forward edge (a → b)
+    
+    Output:
+        Binary adjacency where adj[i,j] = 1 means i → j
+        
+    Conversion rules:
+        - Value 2 (forward): Keep as edge (i → j)
+        - Value -1 (backward): This is j → i, so DON'T mark i → j
+        - Value 1 (undirected): Mark as edge in both directions for skeleton comparison
+        - Value 0: No edge
+    """
+    directed_adj = np.zeros_like(pag_adj, dtype=int)
+    
+    # Forward edges (value 2) -> mark as directed
+    directed_adj[pag_adj == 2] = 1
+    
+    # Undirected edges (value 1) -> mark symmetrically for skeleton
+    directed_adj[pag_adj == 1] = 1
+    
+    # Backward edges (-1) are NOT marked because they represent the reverse direction
+    # The corresponding forward edge (value 2) at the transposed position handles it
+    
+    return directed_adj
+
+
+def pag_to_skeleton(pag_adj: np.ndarray) -> np.ndarray:
+    """
+    Extract skeleton (undirected adjacency) from PAG format.
+    Any non-zero value indicates an edge exists.
+    
+    Returns symmetric binary matrix where adj[i,j] = adj[j,i] = 1 if any edge exists.
+    """
+    skeleton = (pag_adj != 0).astype(int)
+    # Make symmetric for skeleton comparison
+    skeleton = np.maximum(skeleton, skeleton.T)
+    return skeleton
+
+
 
 # ReX algorithm (currently disabled)
 REX_AVAILABLE = False
@@ -30,16 +76,8 @@ except ImportError:
     TETRAD_AVAILABLE = False
     print("[WARNING] Tetrad core algorithms not available - tetrad_rfci/ tetrad_fges modules not found")
 
-# FCI Variants (BOSS-FCI, GRaSP-FCI, SP-FCI) - robust import
+# FCI Variants (BOSS-FCI, GRaSP-FCI, SP-FCI) - removed per user request
 FCI_VARIANTS_AVAILABLE = False
-try:
-    from acd_sea.inference_pipeline.tetrad_boss_fci import TetradBossFCI
-    from acd_sea.inference_pipeline.tetrad_grasp_fci import TetradGraspFCI
-    from acd_sea.inference_pipeline.tetrad_sp_fci import TetradSpFCI
-    FCI_VARIANTS_AVAILABLE = True
-except ImportError as e:
-    FCI_VARIANTS_AVAILABLE = False
-    print(f"[INFO] FCI variants not available: {e}")
 
 # Optional external algorithms (BOSS, TXGES) removed - not used in current pipeline
 
@@ -130,9 +168,9 @@ class TetradRFCIAlgorithm(BaseAlgorithm):
     
     def __init__(self, **kwargs):
         super().__init__("TetradRFCI", **kwargs)
-        # Use optimized parameters from our analysis
-        self.alpha = kwargs.get('alpha', 0.1)
-        self.depth = kwargs.get('depth', 2)
+        # Consistent parameters across all algorithms
+        self.alpha = kwargs.get('alpha', 0.05)
+        self.depth = kwargs.get('depth', -1)
         
     def _preprocess(self, data: np.ndarray, columns: list) -> Tuple[np.ndarray, Dict[str, Any]]:
         """Preprocess data for Tetrad RFCI algorithm"""
@@ -176,20 +214,16 @@ class TetradRFCIAlgorithm(BaseAlgorithm):
             return np.zeros((preprocessed_data.shape[1], preprocessed_data.shape[1]))
         
     def _postprocess(self, raw_output: np.ndarray, original_shape: Tuple[int, int], metadata: Dict[str, Any]) -> np.ndarray:
-        """Postprocess Tetrad RFCI output"""
-        # Ensure output is binary and correct shape
+        """Postprocess Tetrad RFCI output - preserves PAG format {-1, 0, 1, 2}"""
         if raw_output is None or np.any(np.isnan(raw_output)):
             return np.zeros((original_shape[1], original_shape[1]))
             
-        # Convert to binary
-        binary_output = (raw_output != 0).astype(int)
-        
-        # Ensure correct shape
-        if binary_output.shape != (original_shape[1], original_shape[1]):
-            print(f"[WARNING] Tetrad RFCI output shape mismatch: {binary_output.shape} vs expected {(original_shape[1], original_shape[1])}")
+        # Ensure correct shape (preserve PAG values, don't convert to binary)
+        if raw_output.shape != (original_shape[1], original_shape[1]):
+            print(f"[WARNING] Tetrad RFCI output shape mismatch: {raw_output.shape} vs expected {(original_shape[1], original_shape[1])}")
             return np.zeros((original_shape[1], original_shape[1]))
             
-        return binary_output
+        return raw_output.astype(int)
 
 
 class TetradFGESAlgorithm(BaseAlgorithm):
@@ -197,8 +231,8 @@ class TetradFGESAlgorithm(BaseAlgorithm):
     
     def __init__(self, **kwargs):
         super().__init__("TetradFGES", **kwargs)
-        # Use optimized parameters from our analysis
-        self.penalty_discount = kwargs.get('penalty_discount', 0.5)
+        # Consistent parameters across all algorithms (penalty_discount=2.0 matches GFCI, BOSS-FCI, etc.)
+        self.penalty_discount = kwargs.get('penalty_discount', 2.0)
         self.max_degree = kwargs.get('max_degree', -1)
         
     def _preprocess(self, data: np.ndarray, columns: list) -> Tuple[np.ndarray, Dict[str, Any]]:
@@ -243,20 +277,16 @@ class TetradFGESAlgorithm(BaseAlgorithm):
             return np.zeros((preprocessed_data.shape[1], preprocessed_data.shape[1]))
         
     def _postprocess(self, raw_output: np.ndarray, original_shape: Tuple[int, int], metadata: Dict[str, Any]) -> np.ndarray:
-        """Postprocess Tetrad FGES output"""
-        # Ensure output is binary and correct shape
+        """Postprocess Tetrad FGES output - preserves PAG/CPDAG format {-1, 0, 1, 2}"""
         if raw_output is None or np.any(np.isnan(raw_output)):
             return np.zeros((original_shape[1], original_shape[1]))
             
-        # Convert to binary
-        binary_output = (raw_output != 0).astype(int)
-        
-        # Ensure correct shape
-        if binary_output.shape != (original_shape[1], original_shape[1]):
-            print(f"[WARNING] Tetrad FGES output shape mismatch: {binary_output.shape} vs expected {(original_shape[1], original_shape[1])}")
+        # Ensure correct shape (preserve PAG values, don't convert to binary)
+        if raw_output.shape != (original_shape[1], original_shape[1]):
+            print(f"[WARNING] Tetrad FGES output shape mismatch: {raw_output.shape} vs expected {(original_shape[1], original_shape[1])}")
             return np.zeros((original_shape[1], original_shape[1]))
             
-        return binary_output
+        return raw_output.astype(int)
 
 
 class AlgorithmRegistry:
@@ -298,7 +328,7 @@ class AlgorithmRegistry:
                 def _postprocess(self, raw_output: np.ndarray, original_shape: Tuple[int, int], metadata: Dict[str, Any]) -> np.ndarray:
                     if raw_output is None or np.any(np.isnan(raw_output)):
                         return np.zeros((original_shape[1], original_shape[1]))
-                    out = (raw_output != 0).astype(int)
+                    out = raw_output.astype(int)  # Preserve PAG format {-1, 0, 1, 2}
                     return out if out.shape == (original_shape[1], original_shape[1]) else np.zeros((original_shape[1], original_shape[1]))
             self.register_algorithm(TetradGFCIAlgorithm())
         except Exception as e:
@@ -322,7 +352,7 @@ class AlgorithmRegistry:
                 def _postprocess(self, raw_output: np.ndarray, original_shape: Tuple[int, int], metadata: Dict[str, Any]) -> np.ndarray:
                     if raw_output is None or np.any(np.isnan(raw_output)):
                         return np.zeros((original_shape[1], original_shape[1]))
-                    out = (raw_output != 0).astype(int)
+                    out = raw_output.astype(int)  # Preserve PAG format {-1, 0, 1, 2}
                     return out if out.shape == (original_shape[1], original_shape[1]) else np.zeros((original_shape[1], original_shape[1]))
             self.register_algorithm(TetradCPCAlgorithm())
         except Exception as e:
@@ -346,7 +376,7 @@ class AlgorithmRegistry:
                 def _postprocess(self, raw_output: np.ndarray, original_shape: Tuple[int, int], metadata: Dict[str, Any]) -> np.ndarray:
                     if raw_output is None or np.any(np.isnan(raw_output)):
                         return np.zeros((original_shape[1], original_shape[1]))
-                    out = (raw_output != 0).astype(int)
+                    out = raw_output.astype(int)  # Preserve PAG format {-1, 0, 1, 2}
                     return out if out.shape == (original_shape[1], original_shape[1]) else np.zeros((original_shape[1], original_shape[1]))
             self.register_algorithm(TetradCFCIAlgorithm())
         except Exception as e:
@@ -354,30 +384,7 @@ class AlgorithmRegistry:
         # BOSS/SAM/DAGMA related adapters removed per request
 
         # DAGMA removed per request
-        # Add FCI
-        try:
-            class TetradFCIAlgorithm(BaseAlgorithm):
-                def __init__(self, **kwargs):
-                    super().__init__("TetradFCI", **kwargs)
-                    self.alpha = kwargs.get('alpha', 0.05)
-                    self.depth = kwargs.get('depth', -1)
-                def _preprocess(self, data: np.ndarray, columns: list):
-                    df = pd.DataFrame(data, columns=columns)
-                    return df, { 'original_shape': data.shape, 'columns': columns }
-                def _run_algorithm(self, preprocessed_data: pd.DataFrame, metadata: Dict[str, Any]) -> np.ndarray:
-                    from acd_sea.inference_pipeline.tetrad_fci import run_fci
-                    prior = None
-                    if self.use_prior_knowledge and self.prior_knowledge:
-                        prior = self.prior_knowledge
-                    return run_fci(preprocessed_data, list(preprocessed_data.columns), alpha=self.alpha, depth=self.depth, prior=prior)
-                def _postprocess(self, raw_output: np.ndarray, original_shape: Tuple[int, int], metadata: Dict[str, Any]) -> np.ndarray:
-                    if raw_output is None or np.any(np.isnan(raw_output)):
-                        return np.zeros((original_shape[1], original_shape[1]))
-                    out = (raw_output != 0).astype(int)
-                    return out if out.shape == (original_shape[1], original_shape[1]) else np.zeros((original_shape[1], original_shape[1]))
-            self.register_algorithm(TetradFCIAlgorithm())
-        except Exception as e:
-            print(f"[WARNING] Could not register TetradFCI: {e}")
+        # TetradFCI removed per user request
         # Add FCI-Max adapter
         try:
             class TetradFCIMaxAlgorithm(BaseAlgorithm):
@@ -397,7 +404,7 @@ class AlgorithmRegistry:
                 def _postprocess(self, raw_output: np.ndarray, original_shape: Tuple[int, int], metadata: Dict[str, Any]) -> np.ndarray:
                     if raw_output is None or np.any(np.isnan(raw_output)):
                         return np.zeros((original_shape[1], original_shape[1]))
-                    out = (raw_output != 0).astype(int)
+                    out = raw_output.astype(int)  # Preserve PAG format {-1, 0, 1, 2}
                     return out if out.shape == (original_shape[1], original_shape[1]) else np.zeros((original_shape[1], original_shape[1]))
             self.register_algorithm(TetradFCIMaxAlgorithm())
         except Exception as e:
@@ -426,124 +433,13 @@ class AlgorithmRegistry:
                 def _postprocess(self, raw_output: np.ndarray, original_shape: Tuple[int, int], metadata: Dict[str, Any]) -> np.ndarray:
                     if raw_output is None or np.any(np.isnan(raw_output)):
                         return np.zeros((original_shape[1], original_shape[1]))
-                    out = (raw_output != 0).astype(int)
+                    out = raw_output.astype(int)  # Preserve PAG format {-1, 0, 1, 2}
                     return out if out.shape == (original_shape[1], original_shape[1]) else np.zeros((original_shape[1], original_shape[1]))
             self.register_algorithm(TetradPCAlgorithm())
         except Exception as e:
             print(f"[WARNING] Could not register TetradPC: {e}")
 
-        # Add FCI Variants (BOSS-FCI, GRaSP-FCI, SP-FCI)
-        if FCI_VARIANTS_AVAILABLE:
-            # BOSS-FCI
-            try:
-                class TetradBossFCIAlgorithm(BaseAlgorithm):
-                    def __init__(self, **kwargs):
-                        super().__init__("TetradBossFCI", **kwargs)
-                        self.alpha = kwargs.get('alpha', 0.05)
-                        self.depth = kwargs.get('depth', -1)
-                        self.penalty_discount = kwargs.get('penalty_discount', 2.0)
-                        self.num_starts = kwargs.get('num_starts', 1)
-                        self.use_bes = kwargs.get('use_bes', True)
-                    def _preprocess(self, data: np.ndarray, columns: list):
-                        df = pd.DataFrame(data, columns=columns)
-                        return df, {'original_shape': data.shape, 'columns': columns}
-                    def _run_algorithm(self, preprocessed_data: pd.DataFrame, metadata: Dict[str, Any]) -> np.ndarray:
-                        from acd_sea.inference_pipeline.tetrad_boss_fci import TetradBossFCI
-                        prior = None
-                        if self.use_prior_knowledge and self.prior_knowledge:
-                            prior = self.prior_knowledge
-                        alg = TetradBossFCI(
-                            alpha=self.alpha,
-                            depth=self.depth,
-                            penalty_discount=self.penalty_discount,
-                            num_starts=self.num_starts,
-                            use_bes=self.use_bes
-                        )
-                        return alg.run(preprocessed_data, prior=prior)
-                    def _postprocess(self, raw_output: np.ndarray, original_shape: Tuple[int, int], metadata: Dict[str, Any]) -> np.ndarray:
-                        if raw_output is None or np.any(np.isnan(raw_output)):
-                            return np.zeros((original_shape[1], original_shape[1]))
-                        out = (raw_output != 0).astype(int)
-                        return out if out.shape == (original_shape[1], original_shape[1]) else np.zeros((original_shape[1], original_shape[1]))
-                self.register_algorithm(TetradBossFCIAlgorithm())
-            except Exception as e:
-                print(f"[WARNING] Could not register TetradBossFCI: {e}")
-
-            # GRaSP-FCI
-            try:
-                class TetradGraspFCIAlgorithm(BaseAlgorithm):
-                    def __init__(self, **kwargs):
-                        super().__init__("TetradGraspFCI", **kwargs)
-                        self.alpha = kwargs.get('alpha', 0.05)
-                        self.depth = kwargs.get('depth', -1)
-                        self.penalty_discount = kwargs.get('penalty_discount', 2.0)
-                        self.num_starts = kwargs.get('num_starts', 1)
-                        self.use_raskutti_uhler = kwargs.get('use_raskutti_uhler', False)
-                        self.use_data_order = kwargs.get('use_data_order', True)
-                    def _preprocess(self, data: np.ndarray, columns: list):
-                        df = pd.DataFrame(data, columns=columns)
-                        return df, {'original_shape': data.shape, 'columns': columns}
-                    def _run_algorithm(self, preprocessed_data: pd.DataFrame, metadata: Dict[str, Any]) -> np.ndarray:
-                        from acd_sea.inference_pipeline.tetrad_grasp_fci import TetradGraspFCI
-                        prior = None
-                        if self.use_prior_knowledge and self.prior_knowledge:
-                            prior = self.prior_knowledge
-                        alg = TetradGraspFCI(
-                            alpha=self.alpha,
-                            depth=self.depth,
-                            penalty_discount=self.penalty_discount,
-                            num_starts=self.num_starts,
-                            use_raskutti_uhler=self.use_raskutti_uhler,
-                            use_data_order=self.use_data_order
-                        )
-                        return alg.run(preprocessed_data, prior=prior)
-                    def _postprocess(self, raw_output: np.ndarray, original_shape: Tuple[int, int], metadata: Dict[str, Any]) -> np.ndarray:
-                        if raw_output is None or np.any(np.isnan(raw_output)):
-                            return np.zeros((original_shape[1], original_shape[1]))
-                        out = (raw_output != 0).astype(int)
-                        return out if out.shape == (original_shape[1], original_shape[1]) else np.zeros((original_shape[1], original_shape[1]))
-                self.register_algorithm(TetradGraspFCIAlgorithm())
-            except Exception as e:
-                print(f"[WARNING] Could not register TetradGraspFCI: {e}")
-
-            # SP-FCI (with variable count check)
-            try:
-                class TetradSpFCIAlgorithm(BaseAlgorithm):
-                    def __init__(self, **kwargs):
-                        super().__init__("TetradSpFCI", **kwargs)
-                        self.alpha = kwargs.get('alpha', 0.05)
-                        self.depth = kwargs.get('depth', -1)
-                        self.penalty_discount = kwargs.get('penalty_discount', 2.0)
-                        self.max_degree = kwargs.get('max_degree', -1)
-                    def _preprocess(self, data: np.ndarray, columns: list):
-                        df = pd.DataFrame(data, columns=columns)
-                        return df, {'original_shape': data.shape, 'columns': columns}
-                    def _run_algorithm(self, preprocessed_data: pd.DataFrame, metadata: Dict[str, Any]) -> np.ndarray:
-                        # Check if number of variables exceeds 11
-                        num_vars = preprocessed_data.shape[1]
-                        if num_vars > 11:
-                            print(f"[WARNING] TetradSpFCI skipped: {num_vars} variables exceeds limit of 11")
-                            return np.zeros((num_vars, num_vars))
-                        
-                        from acd_sea.inference_pipeline.tetrad_sp_fci import TetradSpFCI
-                        prior = None
-                        if self.use_prior_knowledge and self.prior_knowledge:
-                            prior = self.prior_knowledge
-                        alg = TetradSpFCI(
-                            alpha=self.alpha,
-                            depth=self.depth,
-                            penalty_discount=self.penalty_discount,
-                            max_degree=self.max_degree
-                        )
-                        return alg.run(preprocessed_data, prior=prior)
-                    def _postprocess(self, raw_output: np.ndarray, original_shape: Tuple[int, int], metadata: Dict[str, Any]) -> np.ndarray:
-                        if raw_output is None or np.any(np.isnan(raw_output)):
-                            return np.zeros((original_shape[1], original_shape[1]))
-                        out = (raw_output != 0).astype(int)
-                        return out if out.shape == (original_shape[1], original_shape[1]) else np.zeros((original_shape[1], original_shape[1]))
-                self.register_algorithm(TetradSpFCIAlgorithm())
-            except Exception as e:
-                print(f"[WARNING] Could not register TetradSpFCI: {e}")
+        # FCI Variants (BOSS-FCI, GRaSP-FCI, SP-FCI) - removed per user request
 
         # =====================================================================
         # Causal-Learn Baseline Algorithms (GES and FCI)
@@ -612,7 +508,7 @@ class AlgorithmRegistry:
                     def _postprocess(self, raw_output: np.ndarray, original_shape: Tuple[int, int], metadata: Dict[str, Any]) -> np.ndarray:
                         if raw_output is None or np.any(np.isnan(raw_output)):
                             return np.zeros((original_shape[1], original_shape[1]))
-                        out = (raw_output != 0).astype(int)
+                        out = raw_output.astype(int)  # Preserve PAG format {-1, 0, 1, 2}
                         return out if out.shape == (original_shape[1], original_shape[1]) else np.zeros((original_shape[1], original_shape[1]))
                 
                 self.register_algorithm(CausalLearnGESAlgorithm())
@@ -680,7 +576,7 @@ class AlgorithmRegistry:
                     def _postprocess(self, raw_output: np.ndarray, original_shape: Tuple[int, int], metadata: Dict[str, Any]) -> np.ndarray:
                         if raw_output is None or np.any(np.isnan(raw_output)):
                             return np.zeros((original_shape[1], original_shape[1]))
-                        out = (raw_output != 0).astype(int)
+                        out = raw_output.astype(int)  # Preserve PAG format {-1, 0, 1, 2}
                         return out if out.shape == (original_shape[1], original_shape[1]) else np.zeros((original_shape[1], original_shape[1]))
                 
                 self.register_algorithm(CausalLearnFCIAlgorithm())
@@ -716,7 +612,17 @@ class AlgorithmRegistry:
         return algorithm.run(data, columns)
 
 def compute_metrics(pred_adj: np.ndarray, true_adj: np.ndarray, max_edges: int) -> Dict[str, Any]:
-    """Compute evaluation metrics for causal discovery results"""
+    """
+    Compute evaluation metrics for causal discovery results.
+    
+    Handles PAG format {-1, 0, 1, 2} from algorithm output:
+        -1: Backward edge (a ← b)
+         0: No edge
+         1: Undirected edge (a — b)
+         2: Forward edge (a → b)
+    
+    Computes both skeleton metrics (any edge) and directed metrics (correct direction).
+    """
     try:
         # Handle edge cases
         if pred_adj is None or np.any(np.isnan(pred_adj)) or np.any(np.isinf(pred_adj)):
@@ -726,12 +632,22 @@ def compute_metrics(pred_adj: np.ndarray, true_adj: np.ndarray, max_edges: int) 
         if pred_adj.shape != true_adj.shape:
             print(f"[WARNING] Shape mismatch: pred={pred_adj.shape}, true={true_adj.shape}")
             return default_metrics()
-            
-        # Ensure binary matrices
-        pred_binary = (pred_adj != 0).astype(int)
-        true_binary = (true_adj != 0).astype(int)
         
-        metrics = MetricsDAG(pred_binary, true_binary).metrics
+        # Convert PAG to directed adjacency for metrics comparison
+        # This extracts forward edges (value 2) and undirected (value 1)
+        pred_directed = pag_to_directed_adjacency(pred_adj)
+        
+        # Ground truth is typically already in directed format {0, 1}
+        # but we apply the same conversion for consistency
+        true_directed = (true_adj != 0).astype(int)
+        
+        # Also compute skeleton metrics (ignore direction, just check if edge exists)
+        pred_skeleton = pag_to_skeleton(pred_adj)
+        true_skeleton = (true_adj != 0).astype(int)
+        true_skeleton = np.maximum(true_skeleton, true_skeleton.T)  # Make symmetric
+        
+        # Primary metrics: directed comparison (what the algorithm predicted vs ground truth)
+        metrics = MetricsDAG(pred_directed, true_directed).metrics
         
         # Extract basic metrics
         precision = metrics.get('precision', 0.0)
@@ -741,6 +657,12 @@ def compute_metrics(pred_adj: np.ndarray, true_adj: np.ndarray, max_edges: int) 
         # Extract SID and gscore (available in gCastle's MetricsDAG)
         sid = metrics.get('sid', None)
         gscore = metrics.get('gscore', None)
+        
+        # Compute skeleton metrics separately
+        skeleton_metrics = MetricsDAG(pred_skeleton, true_skeleton).metrics
+        skeleton_precision = skeleton_metrics.get('precision', 0.0)
+        skeleton_recall = skeleton_metrics.get('recall', 0.0)
+        skeleton_shd = skeleton_metrics.get('shd', None)
         
         # Convert numpy types to Python types to avoid serialization issues
         if isinstance(precision, np.floating):
@@ -753,21 +675,35 @@ def compute_metrics(pred_adj: np.ndarray, true_adj: np.ndarray, max_edges: int) 
             sid = int(sid) if sid == int(sid) else float(sid)
         if isinstance(gscore, np.floating):
             gscore = float(gscore)
+        if isinstance(skeleton_precision, np.floating):
+            skeleton_precision = float(skeleton_precision)
+        if isinstance(skeleton_recall, np.floating):
+            skeleton_recall = float(skeleton_recall)
+        if isinstance(skeleton_shd, (np.integer, np.floating)):
+            skeleton_shd = int(skeleton_shd) if skeleton_shd == int(skeleton_shd) else float(skeleton_shd)
             
         # Handle NaN values
         if np.isnan(precision) or np.isnan(recall):
             precision = 0.0
             recall = 0.0
+        if np.isnan(skeleton_precision) or np.isnan(skeleton_recall):
+            skeleton_precision = 0.0
+            skeleton_recall = 0.0
         if sid is not None and np.isnan(sid):
             sid = None
         if gscore is not None and np.isnan(gscore):
             gscore = None
             
-        # Calculate F1 score safely
+        # Calculate F1 scores safely
         if precision + recall > 0:
             f1 = 2 * (precision * recall) / (precision + recall)
         else:
             f1 = 0.0
+            
+        if skeleton_precision + skeleton_recall > 0:
+            skeleton_f1 = 2 * (skeleton_precision * skeleton_recall) / (skeleton_precision + skeleton_recall)
+        else:
+            skeleton_f1 = 0.0
             
         # Calculate normalized SHD safely
         if shd is not None and max_edges > 0:
@@ -775,9 +711,15 @@ def compute_metrics(pred_adj: np.ndarray, true_adj: np.ndarray, max_edges: int) 
         else:
             normalized_shd = 0.0
             
+        # Count edges by type in predicted adjacency
+        pred_forward_edges = int(np.sum(pred_adj == 2))
+        pred_undirected_edges = int(np.sum(pred_adj == 1))
+        pred_backward_edges = int(np.sum(pred_adj == -1))
+        pred_total_edges = int(np.sum(pred_directed != 0))
+            
         # Debug print for zero precision and recall
         if precision == 0.0 and recall == 0.0:
-            print(f"[DEBUG] Both precision and recall are zero! pred_edge_count={np.sum(pred_binary != 0)} true_edge_count={np.sum(true_binary != 0)}")
+            print(f"[DEBUG] Both precision and recall are zero! pred_edge_count={pred_total_edges} true_edge_count={np.sum(true_directed != 0)}")
 
         return {
             'shd': shd,
@@ -785,12 +727,21 @@ def compute_metrics(pred_adj: np.ndarray, true_adj: np.ndarray, max_edges: int) 
             'f1_score': f1,
             'precision': precision,
             'recall': recall,
-            'pred_edge_count': int(np.sum(pred_binary != 0)),
+            'pred_edge_count': pred_total_edges,
+            'pred_forward_edges': pred_forward_edges,
+            'pred_undirected_edges': pred_undirected_edges,
+            'pred_backward_edges': pred_backward_edges,
+            'skeleton_f1': skeleton_f1,
+            'skeleton_precision': skeleton_precision,
+            'skeleton_recall': skeleton_recall,
+            'skeleton_shd': skeleton_shd,
             'sid': sid,
             'gscore': gscore
         }
     except Exception as e:
         print(f"[ERROR] Exception in compute_metrics: {e}")
+        import traceback
+        traceback.print_exc()
         return default_metrics()
 
 def default_metrics() -> Dict[str, Any]:
@@ -802,6 +753,13 @@ def default_metrics() -> Dict[str, Any]:
         'precision': 0.0,
         'recall': 0.0,
         'pred_edge_count': 0,
+        'pred_forward_edges': 0,
+        'pred_undirected_edges': 0,
+        'pred_backward_edges': 0,
+        'skeleton_f1': 0.0,
+        'skeleton_precision': 0.0,
+        'skeleton_recall': 0.0,
+        'skeleton_shd': None,
         'sid': None,
         'gscore': None
     }

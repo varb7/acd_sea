@@ -77,7 +77,9 @@ def save_one_dataset(df, metadata, G, out_dir: Path, base: str, index_file: Path
     ordered = metadata['temporal_order']
     adj = nx.to_numpy_array(G, nodelist=ordered, dtype=int)
     ddir = out_dir / base
-    save_dataset_with_splits(df, adj, metadata, str(ddir), base, index_file=str(index_file), train_ratio=train_ratio)
+    # Ensure directory exists and use absolute path
+    ddir.mkdir(parents=True, exist_ok=True)
+    save_dataset_with_splits(df, adj, metadata, str(ddir.resolve()), base, index_file=str(index_file), train_ratio=train_ratio)
 
 
 def run_phase1(cfg: Dict):

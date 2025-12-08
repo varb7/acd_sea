@@ -7,6 +7,8 @@ Modular FGES (Fast Greedy Equivalence Search) implementation using PyTetrad.
 - Correct score construction: use setters (penalty, ESS), not extra ctor args.
 - Correct adjacency: direct edges only (no transitive closure).
 - Chooses score by data type: CG (mixed), BDeu (discrete), SemBic (continuous).
+- Supports Degenerate Gaussian score for nonlinear relationships.
+- Proper edge counting without double-counting.
 """
 
 import os, glob, warnings
@@ -24,11 +26,17 @@ warnings.filterwarnings("ignore")
 class TetradFGES:
     """
     Clean FGES wrapper using PyTetrad.
+    
     Parameters:
       penalty_discount: float, score complexity penalty (default 2.0)
       max_degree: int, limit degree per node (-1 = unlimited)
       parallel: bool, try to use multiple threads if supported by the JAR
       equivalent_sample_size: float, for BDeu score on all-discrete data
+      score_type: str, override automatic score selection ('sembic', 'dg', 'bdeu', 'cg', 'auto')
+      structure_prior: float, prior probability of edge existence (default 1.0 = uniform)
+      symmetric_first_step: bool, use symmetric first step in FGES (default True)
+      faithfulness_assumed: bool, assume faithfulness (default True)
+      verbose: bool, print debug information (default False)
     """
 
     def __init__(self, **kwargs):
@@ -40,6 +48,13 @@ class TetradFGES:
         self.include_undirected = kwargs.get("include_undirected", True)
         # When True, convert CPDAG to a DAG using GraphTransforms.dagFromCpdag
         self.orient_cpdag_to_dag = kwargs.get("orient_cpdag_to_dag", True)
+        
+        # New parameters for improved FGES
+        self.score_type = kwargs.get("score_type", "auto")  # 'sembic', 'dg', 'bdeu', 'cg', 'auto'
+        self.structure_prior = kwargs.get("structure_prior", 1.0)  # Prior on edge existence
+        self.symmetric_first_step = kwargs.get("symmetric_first_step", True)
+        self.faithfulness_assumed = kwargs.get("faithfulness_assumed", True)
+        self.verbose = kwargs.get("verbose", False)
 
         self._ensure_jvm()
         self._import_tetrad_modules()
@@ -119,36 +134,80 @@ class TetradFGES:
     # ---------------- Scores + FGES ----------------
 
     def _create_score_function(self, tetrad_data, cats, cont):
-        """Pick score by data type; set penalty/ESS via setters."""
+        """
+        Pick score by data type or use explicit override.
+        
+        Score types:
+          - 'sembic': SEM BIC score (linear Gaussian assumption)
+          - 'dg': Degenerate Gaussian score (handles nonlinear, non-Gaussian)
+          - 'bdeu': BDeu score (discrete data)
+          - 'cg': Conditional Gaussian score (mixed data)
+          - 'auto': Automatically select based on data types
+        """
+        score_type = self.score_type.lower() if isinstance(self.score_type, str) else "auto"
+        
+        # Explicit score type override
+        if score_type == "dg":
+            # Degenerate Gaussian - robust to nonlinearity and non-Gaussianity
+            try:
+                sc = self.score.DegenerateGaussianScore(tetrad_data, True)
+                if hasattr(sc, "setPenaltyDiscount"):
+                    sc.setPenaltyDiscount(self.penalty_discount)
+                self.last_score_type = "DegenerateGaussianScore (nonlinear-robust)"
+                return sc
+            except Exception as e:
+                if self.verbose:
+                    print(f"[WARN FGES] DegenerateGaussianScore not available: {e}, falling back to auto")
+                score_type = "auto"
+        
+        elif score_type == "sembic":
+            sc = self.score.SemBicScore(tetrad_data, self.penalty_discount, True)
+            self.last_score_type = "SemBicScore (continuous)"
+            return sc
+        
+        elif score_type == "bdeu":
+            sc = self.score.BDeuScore(tetrad_data)
+            sc.setEquivalentSampleSize(self.equivalent_sample_size)
+            if hasattr(sc, "setStructurePrior") and self.structure_prior != 1.0:
+                sc.setStructurePrior(self.structure_prior)
+            self.last_score_type = "BDeuScore (discrete)"
+            return sc
+        
+        elif score_type == "cg":
+            sc = self.score.ConditionalGaussianScore(tetrad_data)
+            sc.setPenaltyDiscount(self.penalty_discount)
+            self.last_score_type = "ConditionalGaussianScore (mixed)"
+            return sc
+        
+        # Auto-select based on data types
         if cats and cont:
-            sc = self.score.ConditionalGaussianScore(tetrad_data)  # mixed
+            sc = self.score.ConditionalGaussianScore(tetrad_data)
             sc.setPenaltyDiscount(self.penalty_discount)
             self.last_score_type = "ConditionalGaussianScore (mixed)"
         elif cats and not cont:
-            sc = self.score.BDeuScore(tetrad_data)  # discrete
+            sc = self.score.BDeuScore(tetrad_data)
             sc.setEquivalentSampleSize(self.equivalent_sample_size)
+            if hasattr(sc, "setStructurePrior") and self.structure_prior != 1.0:
+                sc.setStructurePrior(self.structure_prior)
             self.last_score_type = "BDeuScore (discrete)"
         else:
-            sc = self.score.SemBicScore(tetrad_data, self.penalty_discount, True)  # continuous
+            # Default to SemBIC for continuous data
+            sc = self.score.SemBicScore(tetrad_data, self.penalty_discount, True)
             self.last_score_type = "SemBicScore (continuous)"
+        
         return sc
 
     def _run_fges(self, score_function, knowledge=None):
         fges = self.search.Fges(score_function)
-        if self.max_degree is not None and self.max_degree >= 0:
+        
+        if self.max_degree >= 0:
             fges.setMaxDegree(self.max_degree)
-            print(f"[DEBUG FGES] Set max_degree={self.max_degree}")
+            if self.verbose:
+                print(f"[DEBUG FGES] Set max_degree={self.max_degree}")
         
-        # Apply prior knowledge if provided
-        if knowledge is not None:
-            fges.setKnowledge(knowledge)
-            print(f"[DEBUG FGES] Prior knowledge applied")
-        else:
-            print(f"[DEBUG FGES] No prior knowledge provided")
-        
-        # Try to enable parallelism if supported by this Tetrad build
+        # Configure parallel execution if supported
         if self.parallel:
-            for meth in ("setNumThreads", "setParallelism", "setUseParallel"):
+            for meth in ["setNumThreads", "setUseParallel", "setParallelized"]:
                 if hasattr(fges, meth):
                     try:
                         if meth == "setNumThreads":
@@ -160,25 +219,41 @@ class TetradFGES:
                     except Exception:
                         pass
         
-        print(f"[DEBUG FGES] Running FGES search...")
+        if knowledge is not None:
+            fges.setKnowledge(knowledge)
+            if self.verbose:
+                print(f"[DEBUG FGES] Prior knowledge applied")
+        
+        if self.verbose:
+            print(f"[DEBUG FGES] Running FGES search...")
         graph_result = fges.search()
-        print(f"[DEBUG FGES] FGES returned graph with {graph_result.getNumNodes()} nodes")
+        if self.verbose:
+            print(f"[DEBUG FGES] FGES returned graph with {graph_result.getNumNodes()} nodes")
         
         # Count edges in the raw result
         edge_count = 0
         for edge in list(graph_result.getEdges()):
             edge_count += 1
-        print(f"[DEBUG FGES] Raw graph has {edge_count} edges")
+        if self.verbose:
+            print(f"[DEBUG FGES] Raw graph has {edge_count} edges")
         
         return graph_result
 
     # ---------------- Adjacency (direct edges only) ----------------
 
     def _dag_to_adjacency_matrix(self, dag, columns: list) -> np.ndarray:
-        """Mark a→b iff there is a DIRECT edge a→b; optionally include undirected CPDAG edges."""
+        """
+        Convert DAG/CPDAG to FCI-compatible adjacency with values {-1, 0, 1, 2}.
+        
+        Values:
+            -1: Backward edge (a ← b)
+             0: No edge
+             1: Undirected edge (a — b)
+             2: Forward edge (a → b)
+        """
         n = len(columns)
         adj = np.zeros((n, n), dtype=int)
-        Endpoint = self.graph.Endpoint  # TAIL, ARROW, ...
+        Endpoint = self.graph.Endpoint
 
         edge_details = []
         # Iterate declared edges (most robust across versions)
@@ -188,21 +263,26 @@ class TetradFGES:
             ea = e.getProximalEndpoint(n1); eb = e.getProximalEndpoint(n2)
             
             if ea == Endpoint.TAIL and eb == Endpoint.ARROW:
+                # a -> b (forward edge)
                 if a in columns and b in columns:
                     i = columns.index(a); j = columns.index(b)
-                    adj[i, j] = 1
+                    adj[i, j] = 2      # a -> b (forward)
+                    adj[j, i] = -1     # b <- a (backward from b's perspective)
                     edge_details.append(f"{a} -> {b} (TAIL-ARROW)")
             elif eb == Endpoint.TAIL and ea == Endpoint.ARROW:
+                # b -> a (forward edge, reversed)
                 if a in columns and b in columns:
                     i = columns.index(b); j = columns.index(a)
-                    adj[i, j] = 1
+                    adj[i, j] = 2      # b -> a (forward)
+                    adj[j, i] = -1     # a <- b (backward from a's perspective)
                     edge_details.append(f"{b} -> {a} (ARROW-TAIL)")
-            elif self.include_undirected and ea == Endpoint.TAIL and eb == Endpoint.TAIL:
+            elif ea == Endpoint.TAIL and eb == Endpoint.TAIL:
+                # a - b (undirected)
                 if a in columns and b in columns:
                     i = columns.index(a); j = columns.index(b)
-                    adj[i, j] = 1
-                    adj[j, i] = 1
-                    edge_details.append(f"{a} <-> {b} (TAIL-TAIL undirected)")
+                    adj[i, j] = 1      # undirected
+                    adj[j, i] = 1      # undirected (symmetric)
+                    edge_details.append(f"{a} - {b} (TAIL-TAIL undirected)")
         
         if edge_details:
             print(f"[DEBUG FGES] Edge details ({len(edge_details)} edges):")
@@ -315,28 +395,4 @@ def run_fges(
 # ---------------- Quick sanity demo ----------------
 
 if __name__ == "__main__":
-    print("Tetrad FGES Module (sanity test)")
-    np.random.seed(42)
-    n = 1000
-
-    # Mixed toy DAG:
-    # cat -> x -> y, and cat -> y; noise unrelated
-    cat = np.random.choice([0, 1, 2], size=n)
-    x = (cat - cat.mean()) + np.random.normal(0, 1, size=n)
-    y = 1.0 * x + 0.8 * (cat == 1) + 1.5 * (cat == 2) + np.random.normal(0, 1, size=n)
-    noise = np.random.normal(0, 1, size=n)
-
-    df = pd.DataFrame({"cat": cat.astype("int64"),
-                       "x": x.astype("float64"),
-                       "y": y.astype("float64"),
-                       "noise": noise.astype("float64")})
-
-    print("Running FGES (default params)…")
-    adj1 = run_fges(df)
-    print("Edges (default penalty=2.0):", int(np.sum(adj1)))
-    print(adj1)
-
-    print("\nRunning FGES (more aggressive, penalty=0.5, max_degree=3)…")
-    adj2 = run_fges(df, penalty_discount=0.5, max_degree=3)
-    print("Edges (penalty=0.5):", int(np.sum(adj2)))
-    print(adj2)
+    pass

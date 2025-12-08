@@ -26,13 +26,13 @@ class TetradRFCI:
     Clean RFCI wrapper using PyTetrad.
 
     Params:
-      alpha: float = 0.01   # CI test significance (higher -> less conservative)
+      alpha: float = 0.05   # CI test significance (consistent across algorithms)
       depth: int  = -1      # max conditioning set size (-1 = unlimited)
       count_partial: bool   # count a o-> b as directed (default False)
     """
 
     def __init__(self, **kwargs):
-        self.alpha = kwargs.get("alpha", 0.01)
+        self.alpha = kwargs.get("alpha", 0.05)  # Consistent with other algorithms
         self.depth = kwargs.get("depth", -1)
         self.count_partial = kwargs.get("count_partial", False)
         # When True, include any PAG adjacency (undirected/ambiguous) as symmetric edges
@@ -132,12 +132,17 @@ class TetradRFCI:
             rfci.setKnowledge(knowledge)
         return rfci.search()
 
-    # ---------------- PAG → adjacency (directed) ----------------
+    # ---------------- PAG → adjacency ----------------
 
     def _pag_to_adjacency_matrix(self, pag, columns: list) -> np.ndarray:
         """
-        Mark a→b iff endpoint at a is TAIL and at b is ARROW.
-        Optionally also count a o-> b when count_partial=True.
+        Convert PAG to FCI-compatible adjacency with values {-1, 0, 1, 2}.
+        
+        Values:
+            -1: Backward edge (a ← b)
+             0: No edge
+             1: Undirected edge (a — b)
+             2: Forward edge (a → b)
         """
         n = len(columns)
         adj = np.zeros((n, n), dtype=int)
@@ -152,6 +157,7 @@ class TetradRFCI:
                 e = pag.getEdge(na, nb)
                 if e is None:
                     continue
+
                 # Map endpoints relative to (na, nb)
                 if e.getNode1() == na:
                     ea = e.getEndpoint1()
@@ -159,14 +165,23 @@ class TetradRFCI:
                 else:
                     ea = e.getEndpoint2()
                     eb = e.getEndpoint1()
+
+                # Convert PAG endpoints to FCI-compatible values
                 if ea == Endpoint.TAIL and eb == Endpoint.ARROW:
-                    adj[i, j] = 1
-                elif self.count_partial and ea == Endpoint.CIRCLE and eb == Endpoint.ARROW:
-                    adj[i, j] = 1
-                elif self.include_undirected:
-                    # treat any connected-but-uncertain as undirected skeleton
-                    adj[i, j] = 1
-                    adj[j, i] = 1
+                    adj[i, j] = 2      # a -> b (definite directed)
+                elif ea == Endpoint.ARROW and eb == Endpoint.TAIL:
+                    adj[i, j] = -1     # a <- b (definite backward)
+                elif ea == Endpoint.TAIL and eb == Endpoint.TAIL:
+                    adj[i, j] = 1      # a - b (undirected/skeleton)
+                elif ea == Endpoint.CIRCLE and eb == Endpoint.ARROW:
+                    adj[i, j] = 2      # a o-> b (partial forward, treat as directed)
+                elif ea == Endpoint.ARROW and eb == Endpoint.CIRCLE:
+                    adj[i, j] = -1     # a <-o b (partial backward)
+                elif ea == Endpoint.CIRCLE and eb == Endpoint.CIRCLE:
+                    adj[i, j] = 1      # a o-o b (fully uncertain, treat as undirected)
+                elif ea == Endpoint.ARROW and eb == Endpoint.ARROW:
+                    adj[i, j] = 1      # a <-> b (bidirected, treat as undirected)
+
         return adj
 
     # ---------------- Public API ----------------
@@ -219,7 +234,7 @@ class TetradRFCI:
 def run_rfci(
     data: Union[pd.DataFrame, np.ndarray],
     columns: Optional[list] = None,
-    alpha: float = 0.01,
+    alpha: float = 0.05,
     depth: int = -1,
     count_partial: bool = False,
     include_undirected: bool = True,
