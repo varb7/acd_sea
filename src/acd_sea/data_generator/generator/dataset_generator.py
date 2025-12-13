@@ -121,13 +121,29 @@ def generate_single_dataset(
     # Determine sample size
     num_samples = rng.integers(samples_min, samples_max + 1)
     
+    # Assign distributions using manufacturing distribution manager first (to get noise_level)
+    dist_manager = ManufacturingDistributionManager(config, seed=dataset_seed, dataset_idx=dataset_idx)
+    
+    # Prepare noise parameters from config, using noise_level from dist_manager
+    noise_type = config.get('noise_type', 'normal')
+    noise_params = dict(config.get('noise_params', {}))  # Copy to avoid modifying original
+    
+    # Use noise_level from dist_manager (supports values/range/default)
+    if 'std' not in noise_params or dist_manager.noise_level is not None:
+        noise_params['std'] = dist_manager.noise_level
+    if 'mean' not in noise_params:
+        noise_params['mean'] = 0.0
+    
     # Generate DAG (only once - don't use generate_data_pipeline which regenerates the graph)
     # The graph is stored in cdg.G and we use that explicitly throughout for consistency
-    cdg = CausalDataGenerator(num_samples=num_samples, seed=dataset_seed)
+    cdg = CausalDataGenerator(
+        num_samples=num_samples,
+        seed=dataset_seed,
+        default_noise_type=noise_type,
+        default_noise_params=noise_params
+    )
     _, roots = cdg.generate_random_graph(num_nodes, num_roots, num_edges)
     
-    # Assign distributions using manufacturing distribution manager
-    dist_manager = ManufacturingDistributionManager(config, seed=dataset_seed, dataset_idx=dataset_idx)
     manufacturing_distributions = dist_manager.assign_manufacturing_distributions(roots)
     
     # Convert to SCDG format
