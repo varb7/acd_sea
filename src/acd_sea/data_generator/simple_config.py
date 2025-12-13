@@ -100,6 +100,8 @@ def _normalize_config(raw: Dict[str, Any] | None) -> Dict[str, Any]:
     if "samples_range" not in config:
         samples_val = data_generation.get("num_samples_range", config.get("samples_range"))
         config["samples_range"] = _normalize_range(samples_val)
+    if "samples_values" not in config and "samples_values" in data_generation:
+        config["samples_values"] = data_generation["samples_values"]
     if "num_samples" not in config and "default_num_samples" in data_generation:
         config["num_samples"] = data_generation["default_num_samples"]
     if "relationship_mix" not in config and "relationship_mix" in data_generation:
@@ -121,6 +123,21 @@ def _normalize_config(raw: Dict[str, Any] | None) -> Dict[str, Any]:
 
     if "generation_ranges" not in config and "generation_ranges" in raw:
         config["generation_ranges"] = raw["generation_ranges"]
+    
+    # Support for specific values per dataset (similar to samples_values)
+    generation_ranges = raw.get("generation_ranges", {})
+    value_keys = [
+        "categorical_percentage_values",
+        "normal_percentage_values",
+        "truncated_normal_percentage_values",
+        "lognormal_percentage_values",
+        "uniform_categorical_percentage_values",
+        "non_uniform_categorical_percentage_values",
+        "noise_level_values"
+    ]
+    for key in value_keys:
+        if key not in config and key in generation_ranges:
+            config[key] = generation_ranges[key]
 
     output = raw.get("output", {})
     if "output_dir" not in config and "output_dir" in output:

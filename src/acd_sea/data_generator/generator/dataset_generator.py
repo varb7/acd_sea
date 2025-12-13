@@ -86,7 +86,14 @@ def generate_single_dataset(
     nodes_min, nodes_max = config.get('nodes_range', [10, 20])
     root_pct_min, root_pct_max = config.get('root_percentage_range', [0.10, 0.30])
     edge_density_min, edge_density_max = config.get('edge_density_range', [0.30, 0.80])
-    samples_min, samples_max = config.get('samples_range', [1000, 50000])
+    
+    # Support for specific sample values or range
+    samples_values = config.get('samples_values', None)
+    if samples_values and len(samples_values) > 0:
+        # Use specific sample size for this dataset index (cycle if needed)
+        samples_min = samples_max = samples_values[dataset_idx % len(samples_values)]
+    else:
+        samples_min, samples_max = config.get('samples_range', [1000, 50000])
     
     # Generate graph parameters
     num_nodes = rng.integers(nodes_min, nodes_max + 1)
@@ -120,7 +127,7 @@ def generate_single_dataset(
     _, roots = cdg.generate_random_graph(num_nodes, num_roots, num_edges)
     
     # Assign distributions using manufacturing distribution manager
-    dist_manager = ManufacturingDistributionManager(config, seed=dataset_seed)
+    dist_manager = ManufacturingDistributionManager(config, seed=dataset_seed, dataset_idx=dataset_idx)
     manufacturing_distributions = dist_manager.assign_manufacturing_distributions(roots)
     
     # Convert to SCDG format
