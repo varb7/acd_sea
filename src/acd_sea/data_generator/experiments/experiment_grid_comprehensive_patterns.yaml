@@ -1,0 +1,51 @@
+# Comprehensive Pattern Test - All Causal Structure Types
+# =======================================================
+# Tests algorithm performance across all available causal patterns
+#
+# Dataset Count: 6 patterns × 2 eq × 2 var × 2 dist × 2 noise × 3 seeds = 288
+
+output_dir: csuite_patterns
+train_ratio: 0.8
+num_stations: 3
+seed: 42
+
+phase3:
+  # FIXED PARAMETERS
+  sizes: [5, 10]
+  samples: [1000]
+  seeds: 3
+  
+  # ALL AVAILABLE CAUSAL PATTERNS
+  patterns: [chain, collider, backdoor, weak_arrow, large_backdoor, mixed_confounding]
+  edge_densities: [0.5]  # Ignored for fixed patterns
+  
+  # FUNCTIONAL FACTORS
+  equation_types: [linear, non_linear]
+  var_types: [continuous, mixed]
+  
+  # DISTRIBUTIONAL FACTORS
+  root_distributions:
+    - type: normal
+      params:
+        mean: 0.0
+        std: 1.0
+    - type: exponential
+      params:
+        scale: 1.5
+  
+  # NOISE CONFIGURATIONS (reduced to 2 for manageable count)
+  noise_configs:
+    - type: normal
+      params:
+        mean: 0.0
+        std: 0.5
+    - type: uniform
+      params:
+        low: -1.0
+        high: 1.0
+  
+  mixed_config:
+    root_categorical: true
+    root_num_classes: 3
+    nonroot_categorical_pct: 0.3
+    nonroot_categorical_num_classes: 3

@@ -1,0 +1,53 @@
+# Stress Test - Challenging Random DAG Conditions
+# ================================================
+# High variance roots, high noise, high density, variable node counts
+# Tests algorithm robustness under difficult conditions
+#
+# Dataset Count: 2 sizes × 2 densities × 2 eq × 2 var × 2 dist × 2 noise × 3 seeds = 192
+
+output_dir: csuite_stress
+train_ratio: 0.8
+num_stations: 3
+seed: 42
+
+phase3:
+  # VARIABLE NODE COUNTS (5 and 10 nodes)
+  sizes: [5, 10]
+  samples: [500,1000]
+  seeds: 3
+  
+  # RANDOM DAG WITH VERY HIGH DENSITY
+  patterns: [random_dag]
+  edge_densities: [0.8, 0.95]  # Dense to very dense
+  
+  # FUNCTIONAL FACTORS
+  equation_types: [linear, non_linear]
+  var_types: [continuous, mixed]
+  
+  # HIGH VARIANCE ROOT DISTRIBUTIONS
+  root_distributions:
+    - type: normal
+      params:
+        mean: 0.0
+        std: 5.0  # High variance (5x normal)
+    - type: exponential
+      params:
+        scale: 5.0  # High scale = high variance
+  
+  # HIGH NOISE CONFIGURATIONS
+  noise_configs:
+    - type: normal
+      params:
+        mean: 0.0
+        std: 2.0  # High noise (4x typical)
+    - type: uniform
+      params:
+        low: -3.0
+        high: 3.0  # Wide uniform noise
+  
+  # CATEGORICAL CONTROL - Higher percentage for stress testing
+  mixed_config:
+    root_categorical: true
+    root_num_classes: 4  # More categories
+    nonroot_categorical_pct: 0.5  # 50% categorical (high)
+    nonroot_categorical_num_classes: 4

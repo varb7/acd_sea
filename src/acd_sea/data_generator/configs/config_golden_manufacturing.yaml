@@ -1,0 +1,83 @@
+total_datasets: 5  # Generate 5 replicates to verify stability
+output_dir: "data/golden_standard"
+log_level: "INFO"
+random_seed: 42
+validate_config: true
+
+graph_structure:
+  # Fixed to 20 nodes for consistent complexity
+  num_nodes_range: [20, 20]
+  # Fixed to 0.20 (Sparse, typical of assembly lines)
+  edges_density_range: [0.20, 0.20]
+  # ~10-15% Root nodes (Exogenous inputs like raw material properties)
+  root_nodes_percentage_range: [0.10, 0.15]
+
+data_generation:
+  # Fixed to 5,000 samples (Standard historian data export size)
+  num_samples_range: [5000, 5000]
+  default_num_samples: 5000
+  
+  # 50/50 Split between simple physics (Linear) and complex interactions (Nonlinear)
+  relationship_mix:
+    linear: 0.50
+    nonlinear: 0.50
+    mixed: 0.00
+
+manufacturing:
+  # 10% Categorical (Machine Settings/IDs), 90% Continuous (Sensors)
+  categorical_percentage: 0.10
+  continuous_percentage: 0.90
+  
+  # Continuous Distribution Mix
+  continuous_distributions:
+    normal: 0.60           # Standard sensor readings
+    truncated_normal: 0.25 # Physical limits (e.g., Valve 0-100%)
+    lognormal: 0.15        # Time-to-failure / Energy spikes
+    
+  # Categorical Distribution Mix
+  categorical_distributions:
+    uniform: 0.50      # Shift IDs, Machine IDs
+    non_uniform: 0.50  # Failure codes (rare events are common)
+
+  # Noise Settings (1% Sensor Noise)
+  noise_level: 0.01 
+  noise_type: "normal"
+  noise_params:
+    mean: 0.0
+    std: 0.01
+
+# ==========================================
+# CONTROL RANGES (TIGHT/FIXED)
+# ==========================================
+# Ranges are intentionally restricted to the target values to ensure
+# this file produces a consistent "Control Group" for benchmarking.
+generation_ranges:
+  # Locked to 10% categorical
+  categorical_percentage: [0.10, 0.10]
+  
+  # Locked distribution probabilities
+  normal_percentage: [0.60, 0.60]
+  truncated_normal_percentage: [0.25, 0.25]
+  lognormal_percentage: [0.15, 0.15]
+  
+  # Locked categorical skew
+  uniform_categorical_percentage: [0.50, 0.50]
+  non_uniform_categorical_percentage: [0.50, 0.50]
+  
+  # Locked Noise at 1% (0.01)
+  noise_level: [0.01, 0.01]
+
+output:
+  output_dir: "manufacturing_datasets/golden_control"
+  save_metadata: true
+  save_graphs: true
+  save_adjacency_matrices: true
+  metadata_format: "json"
+  graph_format: "npy"
+  adjacency_format: "csv"
+
+strategy:
+  strategy: "mixed"
+  seed: 42
+  parallel_workers: 2
+  progress_reporting: true

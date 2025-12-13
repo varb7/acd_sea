@@ -1,0 +1,71 @@
+# ==========================================
+# GOLDEN STANDARD CONFIGURATION (CONTROL SET)
+# ==========================================
+# Typical manufacturing control scenario with fixed parameters for repeatable benchmarking.
+# ==========================================
+
+total_datasets: 6
+output_dir: "data/golden_standard"
+log_level: "INFO"
+random_seed: 44
+validate_config: true
+
+graph_structure:
+  num_nodes_range: [20, 20]
+  edges_density_range: [0.20, 0.20]
+  root_nodes_percentage_range: [0.10, 0.15]
+
+data_generation:
+  # Specific sample sizes for each dataset (one per dataset)
+  samples_values: [1000, 5000, 10000, 20000, 50000, 100000]
+  default_num_samples: 5000
+  relationship_mix:
+    linear: 0.50
+    nonlinear: 0.50
+    mixed: 0.00
+
+manufacturing:
+  categorical_percentage: 0.10
+  continuous_percentage: 0.90
+  continuous_distributions:
+    normal: 0.60
+    truncated_normal: 0.25
+    lognormal: 0.15
+  categorical_distributions:
+    uniform: 0.50
+    non_uniform: 0.50
+  noise_level: 0.01
+  noise_type: "normal"
+  noise_params:
+    mean: 0.0
+    std: 0.01
+
+generation_ranges:
+  categorical_percentage: [0.10, 0.10]
+  normal_percentage: [0.60, 0.60]
+  truncated_normal_percentage: [0.25, 0.25]
+  lognormal_percentage: [0.15, 0.15]
+  uniform_categorical_percentage: [0.50, 0.50]
+  non_uniform_categorical_percentage: [0.50, 0.50]
+  noise_level: [0.01, 0.01]
+
+output:
+  output_dir: "manufacturing_datasets_sample_variations"
+  save_metadata: true
+  save_graphs: true
+  save_adjacency_matrices: true
+  metadata_format: "json"
+  graph_format: "npy"
+  adjacency_format: "csv"
+
+strategy:
+  strategy: "mixed"
+  seed: 42
+  parallel_workers: 2
+  progress_reporting: true
+  save_intermediate_results: false
+
+# Station assignment
+num_stations: 3
+extract_station_info: true
+

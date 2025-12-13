@@ -1,0 +1,24 @@
+# Focus on the node×sample interaction only
+output_dir: csuite_initial
+train_ratio: 0.8
+num_stations: 3
+seed: 42
+
+phase3:
+  sizes: [3, 5, 7, 10]           # Key points: min, mid, max
+  samples: [200, 500, 750, 1000]   # Full sample range
+  seeds: 5                    # More seeds for reliability
+  
+  patterns: [random_dag]
+  edge_densities: [0.5]       # Single density
+  
+  equation_types: [linear]    # Simplify - keep linear only
+  var_types: [continuous]     # Simplify - keep continuous only
+  
+  root_distributions:
+    - type: normal
+      params: {mean: 0.0, std: 1.0}
+  
+  noise_configs:
+    - type: normal
+      params: {mean: 0.0, std: 0.5}

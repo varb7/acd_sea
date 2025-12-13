@@ -12,6 +12,10 @@ graph_structure:
 data_generation:
   num_samples_range: [1000, 25000]
   default_num_samples: 5000
+  relationship_mix:
+    linear: 0.60
+    nonlinear: 0.30
+    mixed: 0.10
 
 manufacturing:
   categorical_percentage: 0.25
