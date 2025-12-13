@@ -60,7 +60,6 @@ ALGO_COLORS = {
     'TetradFCIMax': '#bcbd22',
     'TetradBossFCI': '#ff7f0e',
     'TetradGraspFCI': '#d62728',
-    'TetradSpFCI': '#aec7e8',
     # Causal-learn baselines (reds/oranges)
     'CausalLearnGES': '#ff9896',
     'CausalLearnFCI': '#c49c94',
@@ -87,6 +86,29 @@ FACTORS = {
     'edge_density_bin': {'label': 'Edge Density', 'order': ['Sparse (0-0.33)', 'Medium (0.33-0.66)', 'Dense (0.66-1.0)']},
 }
 
+# Enabled algorithms (matches AlgorithmRegistry in inference_pipeline/utils/algorithms.py)
+ENABLED_ALGORITHMS = {
+    # Core PyTetrad algorithms
+    'TetradRFCI',
+    'TetradFGES',
+    # Conditionally registered PyTetrad algorithms
+    'TetradGFCI',
+    'TetradCPC',
+    'TetradCFCI',
+    'TetradFCI',
+    'TetradFCIMax',
+    'TetradPC',
+    # FCI Variants
+    'TetradBossFCI',
+    'TetradGraspFCI',
+    # Optional baseline algorithms (if causallearn is installed)
+    'CausalLearnGES',
+    'CausalLearnFCI',
+}
+
+# Disabled algorithms (currently none)
+DISABLED_ALGORITHMS = set()
+
 
 class ResultsAnalyzer:
     """Analyze and visualize causal discovery experiment results."""
@@ -101,6 +123,15 @@ class ResultsAnalyzer:
         
     def _preprocess(self):
         """Preprocess the dataframe."""
+        # Filter out disabled algorithms
+        initial_count = len(self.df)
+        disabled_in_data = self.df[self.df['algorithm'].isin(DISABLED_ALGORITHMS)]['algorithm'].unique()
+        if len(disabled_in_data) > 0:
+            print(f"\n⚠️  Filtering out disabled algorithms: {list(disabled_in_data)}")
+            self.df = self.df[~self.df['algorithm'].isin(DISABLED_ALGORITHMS)]
+            filtered_count = len(self.df)
+            print(f"   Removed {initial_count - filtered_count} rows with disabled algorithms")
+        
         # Convert edge_density to numeric if possible
         if 'edge_density' in self.df.columns:
             self.df['edge_density'] = pd.to_numeric(self.df['edge_density'], errors='coerce')
@@ -542,9 +573,12 @@ class ResultsAnalyzer:
         
         # FCI comparison
         ax2 = axes[1]
-        fci_tetrad = ['TetradFCI', 'TetradRFCI', 'TetradGFCI', 'TetradCFCI', 
-                      'TetradBossFCI', 'TetradGraspFCI', 'TetradSpFCI', 'TetradFCIMax']
-        fci_algos = [a for a in fci_tetrad if a in self.df['algorithm'].unique()] + ['CausalLearnFCI']
+        fci_tetrad = ['TetradFCI', 'TetradRFCI', 'TetradGFCI', 'TetradCFCI', 'TetradFCIMax',
+                      'TetradBossFCI', 'TetradGraspFCI', 'TetradSpFCI']
+        # Filter to only enabled algorithms that exist in data
+        fci_algos = [a for a in fci_tetrad if a in self.df['algorithm'].unique() and a not in DISABLED_ALGORITHMS]
+        if 'CausalLearnFCI' in self.df['algorithm'].unique():
+            fci_algos.append('CausalLearnFCI')
         
         summary = self.df[self.df['algorithm'].isin(fci_algos)].groupby('algorithm')[metric].agg(['mean', 'std'])
         summary = summary.sort_values('mean', ascending=False)
@@ -982,7 +1016,7 @@ def main():
     parser.add_argument('--results', '-r', type=str, 
                        default='causal_discovery_results2/experiment_results.csv',
                        help='Path to results CSV file')
-    parser.add_argument('--output', '-o', type=str, default='figures2',
+    parser.add_argument('--output', '-o', type=str, default='figures_stress_test',
                        help='Output directory for figures')
     parser.add_argument('--metric', '-m', type=str, default='f1_score',
                        choices=list(METRICS.keys()),

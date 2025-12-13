@@ -381,10 +381,33 @@ class AlgorithmRegistry:
             self.register_algorithm(TetradCFCIAlgorithm())
         except Exception as e:
             print(f"[WARNING] Could not register TetradCFCI: {e}")
+        # Add FCI
+        try:
+            class TetradFCIAlgorithm(BaseAlgorithm):
+                def __init__(self, **kwargs):
+                    super().__init__("TetradFCI", **kwargs)
+                    self.alpha = kwargs.get('alpha', 0.05)
+                    self.depth = kwargs.get('depth', -1)
+                def _preprocess(self, data: np.ndarray, columns: list):
+                    df = pd.DataFrame(data, columns=columns)
+                    return df, { 'original_shape': data.shape, 'columns': columns }
+                def _run_algorithm(self, preprocessed_data: pd.DataFrame, metadata: Dict[str, Any]) -> np.ndarray:
+                    from acd_sea.inference_pipeline.tetrad_fci import run_fci
+                    prior = None
+                    if self.use_prior_knowledge and self.prior_knowledge:
+                        prior = self.prior_knowledge
+                    return run_fci(preprocessed_data, list(preprocessed_data.columns), alpha=self.alpha, depth=self.depth, prior=prior)
+                def _postprocess(self, raw_output: np.ndarray, original_shape: Tuple[int, int], metadata: Dict[str, Any]) -> np.ndarray:
+                    if raw_output is None or np.any(np.isnan(raw_output)):
+                        return np.zeros((original_shape[1], original_shape[1]))
+                    out = raw_output.astype(int)  # Preserve PAG format {-1, 0, 1, 2}
+                    return out if out.shape == (original_shape[1], original_shape[1]) else np.zeros((original_shape[1], original_shape[1]))
+            self.register_algorithm(TetradFCIAlgorithm())
+        except Exception as e:
+            print(f"[WARNING] Could not register TetradFCI: {e}")
         # BOSS/SAM/DAGMA related adapters removed per request
 
         # DAGMA removed per request
-        # TetradFCI removed per user request
         # Add FCI-Max adapter
         try:
             class TetradFCIMaxAlgorithm(BaseAlgorithm):
@@ -439,8 +462,68 @@ class AlgorithmRegistry:
         except Exception as e:
             print(f"[WARNING] Could not register TetradPC: {e}")
 
-        # FCI Variants (BOSS-FCI, GRaSP-FCI, SP-FCI) - removed per user request
-
+        # Add BOSS-FCI
+        try:
+            class TetradBossFCIAlgorithm(BaseAlgorithm):
+                def __init__(self, **kwargs):
+                    super().__init__("TetradBossFCI", **kwargs)
+                    self.alpha = kwargs.get('alpha', 0.05)
+                    self.depth = kwargs.get('depth', -1)
+                    self.penalty_discount = kwargs.get('penalty_discount', 2.0)
+                def _preprocess(self, data: np.ndarray, columns: list):
+                    df = pd.DataFrame(data, columns=columns)
+                    return df, { 'original_shape': data.shape, 'columns': columns }
+                def _run_algorithm(self, preprocessed_data: pd.DataFrame, metadata: Dict[str, Any]) -> np.ndarray:
+                    from acd_sea.inference_pipeline.tetrad_boss_fci import TetradBossFCI
+                    prior = None
+                    if self.use_prior_knowledge and self.prior_knowledge:
+                        prior = self.prior_knowledge
+                    alg = TetradBossFCI(
+                        alpha=self.alpha,
+                        depth=self.depth,
+                        penalty_discount=self.penalty_discount
+                    )
+                    return alg.run(preprocessed_data, prior=prior)
+                def _postprocess(self, raw_output: np.ndarray, original_shape: Tuple[int, int], metadata: Dict[str, Any]) -> np.ndarray:
+                    if raw_output is None or np.any(np.isnan(raw_output)):
+                        return np.zeros((original_shape[1], original_shape[1]))
+                    out = raw_output.astype(int)  # Preserve PAG format {-1, 0, 1, 2}
+                    return out if out.shape == (original_shape[1], original_shape[1]) else np.zeros((original_shape[1], original_shape[1]))
+            self.register_algorithm(TetradBossFCIAlgorithm())
+        except Exception as e:
+            print(f"[WARNING] Could not register TetradBossFCI: {e}")
+        
+        # Add GRaSP-FCI
+        try:
+            class TetradGraspFCIAlgorithm(BaseAlgorithm):
+                def __init__(self, **kwargs):
+                    super().__init__("TetradGraspFCI", **kwargs)
+                    self.alpha = kwargs.get('alpha', 0.05)
+                    self.depth = kwargs.get('depth', -1)
+                    self.penalty_discount = kwargs.get('penalty_discount', 2.0)
+                def _preprocess(self, data: np.ndarray, columns: list):
+                    df = pd.DataFrame(data, columns=columns)
+                    return df, { 'original_shape': data.shape, 'columns': columns }
+                def _run_algorithm(self, preprocessed_data: pd.DataFrame, metadata: Dict[str, Any]) -> np.ndarray:
+                    from acd_sea.inference_pipeline.tetrad_grasp_fci import TetradGraspFCI
+                    prior = None
+                    if self.use_prior_knowledge and self.prior_knowledge:
+                        prior = self.prior_knowledge
+                    alg = TetradGraspFCI(
+                        alpha=self.alpha,
+                        depth=self.depth,
+                        penalty_discount=self.penalty_discount
+                    )
+                    return alg.run(preprocessed_data, prior=prior)
+                def _postprocess(self, raw_output: np.ndarray, original_shape: Tuple[int, int], metadata: Dict[str, Any]) -> np.ndarray:
+                    if raw_output is None or np.any(np.isnan(raw_output)):
+                        return np.zeros((original_shape[1], original_shape[1]))
+                    out = raw_output.astype(int)  # Preserve PAG format {-1, 0, 1, 2}
+                    return out if out.shape == (original_shape[1], original_shape[1]) else np.zeros((original_shape[1], original_shape[1]))
+            self.register_algorithm(TetradGraspFCIAlgorithm())
+        except Exception as e:
+            print(f"[WARNING] Could not register TetradGraspFCI: {e}")
+        
         # =====================================================================
         # Causal-Learn Baseline Algorithms (GES and FCI)
         # These are included for comparison against PyTetrad variants

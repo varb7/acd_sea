@@ -37,6 +37,20 @@ def assign_mock_stations(nodes: List[int], num_stations: int = 3, graph: nx.DiGr
         shares = rng.dirichlet([alpha] * k)
         sizes = np.maximum(1, np.round(shares * N)).astype(int)
         sizes[-1] = N - sizes[:-1].sum()  # fix rounding drift
+        # Guard against negative/zero drift on the final bucket so we always create k stations
+        if sizes[-1] <= 0:
+            # Rebalance by stealing from the largest buckets until the last is at least 1
+            while sizes[-1] <= 0:
+                donor_idx = int(np.argmax(sizes[:-1]))
+                if sizes[donor_idx] <= 1:
+                    break  # avoid zeroing out others; fall back to minimum 1 each
+                sizes[donor_idx] -= 1
+                sizes[-1] += 1
+            # If still not positive, enforce minimum 1 and adjust the largest bucket
+            if sizes[-1] <= 0:
+                sizes[-1] = 1
+                donor_idx = int(np.argmax(sizes[:-1]))
+                sizes[donor_idx] = max(1, sizes[donor_idx] - 1)
         
         # Create station assignment
         station_assignment = {}
