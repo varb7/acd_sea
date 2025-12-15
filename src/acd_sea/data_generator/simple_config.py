@@ -97,6 +97,8 @@ def _normalize_config(raw: Dict[str, Any] | None) -> Dict[str, Any]:
         config["edge_density_range"] = _normalize_range(edge_val)
     
     # Support for specific values per dataset (similar to samples_values)
+    if "num_nodes_values" not in config and "num_nodes_values" in graph:
+        config["num_nodes_values"] = graph["num_nodes_values"]
     if "root_nodes_percentage_values" not in config and "root_nodes_percentage_values" in graph:
         config["root_nodes_percentage_values"] = graph["root_nodes_percentage_values"]
     if "edges_density_values" not in config and "edges_density_values" in graph:

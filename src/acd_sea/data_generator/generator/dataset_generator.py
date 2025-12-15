@@ -83,7 +83,15 @@ def generate_single_dataset(
     rng = np.random.default_rng(dataset_seed)
     
     # Extract configuration parameters
-    nodes_min, nodes_max = config.get('nodes_range', [10, 20])
+    # Support for specific node count values or range
+    num_nodes_values = config.get('num_nodes_values', None)
+    if num_nodes_values and len(num_nodes_values) > 0:
+        # Use specific node count for this dataset index (cycle if needed)
+        num_nodes = num_nodes_values[dataset_idx % len(num_nodes_values)]
+        nodes_min = nodes_max = num_nodes
+    else:
+        nodes_range = config.get('nodes_range') or [10, 20]
+        nodes_min, nodes_max = nodes_range
     
     # Support for specific root percentage values or range
     root_pct_values = config.get('root_nodes_percentage_values', None)
@@ -111,8 +119,11 @@ def generate_single_dataset(
     else:
         samples_min, samples_max = config.get('samples_range', [1000, 50000])
     
-    # Generate graph parameters
-    num_nodes = rng.integers(nodes_min, nodes_max + 1)
+    # Generate graph parameters (num_nodes may already be set from num_nodes_values)
+    if num_nodes_values and len(num_nodes_values) > 0:
+        pass  # num_nodes already set above
+    else:
+        num_nodes = rng.integers(nodes_min, nodes_max + 1)
     
     # Calculate root nodes
     min_roots = max(1, int(num_nodes * root_pct_min))
