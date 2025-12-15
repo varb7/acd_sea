@@ -84,8 +84,24 @@ def generate_single_dataset(
     
     # Extract configuration parameters
     nodes_min, nodes_max = config.get('nodes_range', [10, 20])
-    root_pct_min, root_pct_max = config.get('root_percentage_range', [0.10, 0.30])
-    edge_density_min, edge_density_max = config.get('edge_density_range', [0.30, 0.80])
+    
+    # Support for specific root percentage values or range
+    root_pct_values = config.get('root_nodes_percentage_values', None)
+    if root_pct_values and len(root_pct_values) > 0:
+        # Use specific root percentage for this dataset index (cycle if needed)
+        root_pct_value = root_pct_values[dataset_idx % len(root_pct_values)]
+        root_pct_min = root_pct_max = root_pct_value
+    else:
+        root_pct_min, root_pct_max = config.get('root_percentage_range', [0.10, 0.30])
+    
+    # Support for specific edge density values or range
+    edge_density_values = config.get('edges_density_values', None)
+    if edge_density_values and len(edge_density_values) > 0:
+        # Use specific edge density for this dataset index (cycle if needed)
+        edge_density_value = edge_density_values[dataset_idx % len(edge_density_values)]
+        edge_density_min = edge_density_max = edge_density_value
+    else:
+        edge_density_min, edge_density_max = config.get('edge_density_range', [0.30, 0.80])
     
     # Support for specific sample values or range
     samples_values = config.get('samples_values', None)
@@ -112,11 +128,15 @@ def generate_single_dataset(
     num_edges = int(target_density * max_edges)
     num_edges = max(min_edges, min(num_edges, max_edges))
     
-    # Determine relationship type
+    # Determine relationship type - use per-edge mixing with configurable linear ratio
     relationship_mix = config.get('relationship_mix', {'linear': 0.6, 'nonlinear': 0.3, 'mixed': 0.1})
-    rel_choice = rng.choice(list(relationship_mix.keys()), p=list(relationship_mix.values()))
-    equation_type_map = {'linear': 'linear', 'nonlinear': 'non_linear', 'mixed': 'random'}
-    equation_type = equation_type_map.get(rel_choice, 'linear')
+    linear_pct = relationship_mix.get('linear', 0.6)
+    nonlinear_pct = relationship_mix.get('nonlinear', 0.3)
+    # Normalize to get the ratio of linear edges within each dataset
+    total = linear_pct + nonlinear_pct
+    linear_ratio = linear_pct / total if total > 0 else 0.5
+    # Always use per-edge mixing with the configured ratio
+    equation_type = 'random'
     
     # Determine sample size
     num_samples = rng.integers(samples_min, samples_max + 1)
@@ -163,8 +183,8 @@ def generate_single_dataset(
     # Set root distributions directly (bypasses generate_data_pipeline to preserve graph)
     cdg.set_root_distributions(scdg_distributions)
     
-    # Assign equations to non-root nodes
-    cdg.assign_equations_to_graph_nodes(equation_type=equation_type)
+    # Assign equations to non-root nodes with per-edge linear/nonlinear mixing
+    cdg.assign_equations_to_graph_nodes(equation_type=equation_type, linear_ratio=linear_ratio)
     
     # Generate data using the SAME graph that was created above
     df = cdg.generate_data()
@@ -213,7 +233,8 @@ def generate_single_dataset(
         'root_nodes': root_node_names,  # List of root node names
         'num_edges': num_edges,
         'num_samples': num_samples,
-        'equation_type': equation_type,
+        'equation_type': 'mixed',  # Per-edge mixing
+        'linear_ratio': linear_ratio,  # Ratio of linear edges (e.g., 0.7 = 70% linear, 30% nonlinear)
         'temporal_order': temporal_order,
         'station_map': station_map,
         'station_blocks': station_blocks,

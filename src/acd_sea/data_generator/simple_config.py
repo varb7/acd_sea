@@ -95,6 +95,12 @@ def _normalize_config(raw: Dict[str, Any] | None) -> Dict[str, Any]:
     if "edge_density_range" not in config:
         edge_val = graph.get("edges_density_range", config.get("edge_density_range"))
         config["edge_density_range"] = _normalize_range(edge_val)
+    
+    # Support for specific values per dataset (similar to samples_values)
+    if "root_nodes_percentage_values" not in config and "root_nodes_percentage_values" in graph:
+        config["root_nodes_percentage_values"] = graph["root_nodes_percentage_values"]
+    if "edges_density_values" not in config and "edges_density_values" in graph:
+        config["edges_density_values"] = graph["edges_density_values"]
 
     data_generation = raw.get("data_generation", {})
     if "samples_range" not in config:
@@ -110,6 +116,9 @@ def _normalize_config(raw: Dict[str, Any] | None) -> Dict[str, Any]:
     manufacturing = raw.get("manufacturing", {})
     if "categorical_percentage" not in config:
         config["categorical_percentage"] = manufacturing.get("categorical_percentage", config.get("categorical_percentage"))
+    # Support for categorical_percentage_values
+    if "categorical_percentage_values" not in config and "categorical_percentage_values" in manufacturing:
+        config["categorical_percentage_values"] = manufacturing["categorical_percentage_values"]
     if "continuous_distributions" not in config:
         config["continuous_distributions"] = manufacturing.get("continuous_distributions", config.get("continuous_distributions"))
     if "categorical_distributions" not in config:

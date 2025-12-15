@@ -369,12 +369,15 @@ class CausalDataGenerator:
 
         self.node_noise_info.update(node_noise_info)
 
-    def assign_equations_to_graph_nodes(self, equation_type='random'):
+    def assign_equations_to_graph_nodes(self, equation_type='random', linear_ratio=0.5):
         """
         Assigns equations to non-root nodes.
 
         Parameters:
         - equation_type (str): 'random', 'linear', or 'non_linear'.
+        - linear_ratio (float): When equation_type='random', the probability that each 
+          edge uses a linear equation (0.0 = all non-linear, 1.0 = all linear, 0.5 = 50/50).
+          Only used when equation_type='random'. Default is 0.5.
         """
         if self.G is None:
             raise ValueError("Graph not defined. Call generate_random_graph first.")
@@ -383,7 +386,7 @@ class CausalDataGenerator:
         if not self.root_ranges:
             self.root_ranges = self._assign_random_distributions_to_root_nodes(list(self.root_nodes))
 
-        self.node_functions = self._assign_equations_impl(self.G, equation_type=equation_type)
+        self.node_functions = self._assign_equations_impl(self.G, equation_type=equation_type, linear_ratio=linear_ratio)
 
     def generate_data(self):
         """
@@ -856,7 +859,7 @@ class CausalDataGenerator:
 
         return root_ranges
 
-    def _assign_equations_impl(self, G, equation_type='random'):
+    def _assign_equations_impl(self, G, equation_type='random', linear_ratio=0.5):
         # Logic from assign_equations_to_graph_nodes from original code:
 
         roots = [node for node in G.nodes if G.in_degree(node) == 0]
@@ -868,13 +871,15 @@ class CausalDataGenerator:
         if equation_type == 'random':
             single_parent_equations = {}
             for child, parent in single_parent_nodes.items():
-                non_linear = self.rng.choice([True, False])
+                # Use linear_ratio to determine if this edge is linear or non-linear
+                non_linear = self.rng.random() >= linear_ratio
                 eq = self._assign_random_equations_to_single_parent_nodes({child: parent}, non_linear=non_linear)
                 single_parent_equations.update(eq)
 
             multi_parent_equations = {}
             for child, parents in multi_parent_nodes.items():
-                non_linear = self.rng.choice([True, False])
+                # Use linear_ratio to determine if this edge is linear or non-linear
+                non_linear = self.rng.random() >= linear_ratio
                 eq = self._assign_random_equations_to_multiparent_nodes({child: parents}, non_linear=non_linear)
                 multi_parent_equations.update(eq)
 
