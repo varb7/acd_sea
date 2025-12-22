@@ -254,6 +254,9 @@ def generate_single_dataset(
         'root_percentage': (num_roots / num_nodes) * 100,
         'categorical_root_percentage': (len(categorical_nodes) / num_roots * 100) if num_roots > 0 else 0,
         'seed': dataset_seed,
+        'noise_level': dist_manager.noise_level,
+        'noise_type': noise_type,
+        'noise_params': noise_params,
         'config': config
     }
     

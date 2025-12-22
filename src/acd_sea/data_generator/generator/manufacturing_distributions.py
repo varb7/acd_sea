@@ -39,10 +39,18 @@ class ManufacturingDistributionManager:
         if values_list and len(values_list) > 0:
             return values_list[self.dataset_idx % len(values_list)]
         
-        # Priority 2: Range sampling
+        # Priority 2: Range sampling or specific values from generation_ranges
         if range_key in self.generation_ranges:
             range_val = self.generation_ranges[range_key]
-            return self.rng.uniform(range_val[0], range_val[1])
+            # If it's a list with more than 2 elements, treat as specific values to cycle through
+            if isinstance(range_val, list) and len(range_val) > 2:
+                return range_val[self.dataset_idx % len(range_val)]
+            # Otherwise treat as [min, max] range and sample uniformly
+            elif isinstance(range_val, list) and len(range_val) == 2:
+                return self.rng.uniform(range_val[0], range_val[1])
+            # Single value
+            elif isinstance(range_val, (int, float)):
+                return range_val
         
         # Priority 3: Default value
         return default_value
