@@ -88,13 +88,33 @@ def _normalize_config(raw: Dict[str, Any] | None) -> Dict[str, Any]:
     graph = raw.get("graph_structure", {})
     if "nodes_range" not in config:
         nodes_val = graph.get("num_nodes_range", config.get("nodes_range"))
-        config["nodes_range"] = _normalize_range(nodes_val)
+        # If nodes_range is a list with >2 elements, treat as specific values
+        if isinstance(nodes_val, list) and len(nodes_val) > 2:
+            if "num_nodes_values" not in config:
+                config["num_nodes_values"] = nodes_val
+            config["nodes_range"] = [min(nodes_val), max(nodes_val)]
+        else:
+            config["nodes_range"] = _normalize_range(nodes_val)
     if "root_percentage_range" not in config:
         root_val = graph.get("root_nodes_percentage_range", config.get("root_percentage_range"))
-        config["root_percentage_range"] = _normalize_range(root_val)
+        # If root_percentage_range is a list with >2 elements, treat as specific values
+        if isinstance(root_val, list) and len(root_val) > 2:
+            if "root_nodes_percentage_values" not in config:
+                config["root_nodes_percentage_values"] = root_val
+            config["root_percentage_range"] = [min(root_val), max(root_val)]
+        else:
+            config["root_percentage_range"] = _normalize_range(root_val)
     if "edge_density_range" not in config:
         edge_val = graph.get("edges_density_range", config.get("edge_density_range"))
-        config["edge_density_range"] = _normalize_range(edge_val)
+        # If edge_density_range is a list with >2 elements, treat as specific values
+        if isinstance(edge_val, list) and len(edge_val) > 2:
+            # Convert to edges_density_values for specific value cycling
+            if "edges_density_values" not in config:
+                config["edges_density_values"] = edge_val
+            # Still set edge_density_range to [min, max] for backward compatibility
+            config["edge_density_range"] = [min(edge_val), max(edge_val)]
+        else:
+            config["edge_density_range"] = _normalize_range(edge_val)
     
     # Support for specific values per dataset (similar to samples_values)
     if "num_nodes_values" not in config and "num_nodes_values" in graph:
@@ -107,7 +127,13 @@ def _normalize_config(raw: Dict[str, Any] | None) -> Dict[str, Any]:
     data_generation = raw.get("data_generation", {})
     if "samples_range" not in config:
         samples_val = data_generation.get("num_samples_range", config.get("samples_range"))
-        config["samples_range"] = _normalize_range(samples_val)
+        # If samples_range is a list with >2 elements, treat as specific values
+        if isinstance(samples_val, list) and len(samples_val) > 2:
+            if "samples_values" not in config:
+                config["samples_values"] = samples_val
+            config["samples_range"] = [min(samples_val), max(samples_val)]
+        else:
+            config["samples_range"] = _normalize_range(samples_val)
     if "samples_values" not in config and "samples_values" in data_generation:
         config["samples_values"] = data_generation["samples_values"]
     if "num_samples" not in config and "default_num_samples" in data_generation:
